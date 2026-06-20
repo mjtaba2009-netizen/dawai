@@ -9,7 +9,24 @@ interface PrescriptionModalProps {
   onClose: () => void;
 }
 
-const SIX_MONTHS_MS = 6 * 30 * 24 * 60 * 60 * 1000;
+// دالة التحقق من تاريخ الوصفة — تُرجع "صالح" أو رسالة الخطأ
+const validatePrescriptionDate = (selectedDateStr: string): string => {
+  const selectedDate = new Date(selectedDateStr);
+  const currentDate  = new Date();
+
+  const sixMonthsAgo = new Date();
+  sixMonthsAgo.setMonth(currentDate.getMonth() - 6);
+
+  if (selectedDate > currentDate) {
+    return "لا يمكن أن يكون تاريخ الوصفة في المستقبل!";
+  }
+
+  if (selectedDate < sixMonthsAgo) {
+    return "عذراً، الوصفة الطبية منتهية الصلاحية (مر عليها أكثر من 6 أشهر).";
+  }
+
+  return "صالح";
+};
 
 export function PrescriptionModal({ medicationName, onConfirm, onClose }: PrescriptionModalProps) {
   const { toast } = useToast();
@@ -21,7 +38,9 @@ export function PrescriptionModal({ medicationName, onConfirm, onClose }: Prescr
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const today = new Date().toISOString().split("T")[0];
-  const sixMonthsAgo = new Date(Date.now() - SIX_MONTHS_MS).toISOString().split("T")[0];
+  const sixMonthsAgoDate = new Date();
+  sixMonthsAgoDate.setMonth(new Date().getMonth() - 6);
+  const sixMonthsAgoStr = sixMonthsAgoDate.toISOString().split("T")[0];
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -37,15 +56,10 @@ export function PrescriptionModal({ medicationName, onConfirm, onClose }: Prescr
     reader.readAsDataURL(file);
   };
 
-  const validateDate = (value: string) => {
+  const validateDate = (value: string): boolean => {
     if (!value) { setDateError("يرجى إدخال تاريخ الوصفة"); return false; }
-    const selected = new Date(value);
-    const now = new Date();
-    if (selected > now) { setDateError("تاريخ الوصفة لا يمكن أن يكون في المستقبل"); return false; }
-    if (selected < new Date(Date.now() - SIX_MONTHS_MS)) {
-      setDateError("عذراً، الوصفة الطبية منتهية الصلاحية. يجب ألا يتجاوز تاريخها 6 أشهر");
-      return false;
-    }
+    const msg = validatePrescriptionDate(value);
+    if (msg !== "صالح") { setDateError(msg); return false; }
     setDateError("");
     return true;
   };
@@ -190,7 +204,7 @@ export function PrescriptionModal({ medicationName, onConfirm, onClose }: Prescr
                 value={prescriptionDate}
                 onChange={handleDateChange}
                 max={today}
-                min={sixMonthsAgo}
+                min={sixMonthsAgoStr}
                 className={`w-full h-12 px-4 rounded-xl border text-sm outline-none transition-colors ${
                   dateError
                     ? "border-red-400 bg-red-50 focus:ring-1 focus:ring-red-400"
