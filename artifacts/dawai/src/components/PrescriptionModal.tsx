@@ -80,7 +80,6 @@ export function PrescriptionModal({ medicationName, onConfirm, onClose }: Prescr
     if (!validateDate(prescriptionDate)) return;
 
     setIsSubmitting(true);
-    // Simulate brief validation delay
     setTimeout(() => {
       setIsSubmitting(false);
       onConfirm();
@@ -89,31 +88,37 @@ export function PrescriptionModal({ medicationName, onConfirm, onClose }: Prescr
 
   return (
     <AnimatePresence>
+      {/* طبقة التعتيم */}
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 backdrop-blur-sm"
+        transition={{ duration: 0.22 }}
+        className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 backdrop-blur-sm"
         onClick={(e) => e.target === e.currentTarget && onClose()}
       >
+        {/* الورقة السفلية */}
         <motion.div
           initial={{ y: "100%", opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           exit={{ y: "100%", opacity: 0 }}
-          transition={{ type: "spring", damping: 30, stiffness: 400 }}
-          className="w-full max-w-[430px] bg-white rounded-t-3xl shadow-2xl overflow-hidden"
+          transition={{ type: "spring", damping: 25, stiffness: 300, mass: 0.8 }}
+          className="w-full max-w-[430px] overflow-hidden rounded-t-3xl
+            bg-white/75 backdrop-blur-2xl
+            border-t border-white/60
+            shadow-[0_-12px_40px_rgb(0,0,0,0.12)]"
         >
           {/* رأس المودال */}
-          <div className="bg-gradient-to-br from-amber-500 to-orange-500 px-5 pt-5 pb-6">
+          <div className="bg-gradient-to-br from-amber-500/90 to-orange-500/90 backdrop-blur-md px-5 pt-5 pb-6 border-b border-white/20">
             <div className="flex items-center justify-between mb-3">
               <button
                 onClick={onClose}
-                className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center"
+                className="w-8 h-8 bg-white/20 hover:bg-white/30 backdrop-blur-sm rounded-xl flex items-center justify-center transition-colors"
                 data-testid="button-close-modal"
               >
                 <X className="w-4 h-4 text-white" />
               </button>
-              <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+              <div className="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center border border-white/30">
                 <AlertTriangle className="w-5 h-5 text-white" />
               </div>
             </div>
@@ -132,20 +137,21 @@ export function PrescriptionModal({ medicationName, onConfirm, onClose }: Prescr
 
               {imagePreview ? (
                 <motion.div
-                  initial={{ opacity: 0, scale: 0.95 }}
+                  initial={{ opacity: 0, scale: 0.94 }}
                   animate={{ opacity: 1, scale: 1 }}
-                  className="relative rounded-2xl overflow-hidden border-2 border-emerald-400"
+                  transition={{ type: "spring", damping: 20, stiffness: 350 }}
+                  className="relative rounded-2xl overflow-hidden border-2 border-emerald-400/60 shadow-[0_4px_20px_rgb(0,0,0,0.08)]"
                 >
                   <img src={imagePreview} alt="الوصفة الطبية" className="w-full h-40 object-cover" />
                   <div className="absolute top-2 left-2">
-                    <div className="w-7 h-7 bg-emerald-500 rounded-lg flex items-center justify-center">
+                    <div className="w-7 h-7 bg-emerald-500/90 backdrop-blur-sm rounded-lg flex items-center justify-center">
                       <CheckCircle className="w-4 h-4 text-white" />
                     </div>
                   </div>
                   <button
                     type="button"
                     onClick={() => setImagePreview(null)}
-                    className="absolute top-2 right-2 w-7 h-7 bg-red-500 rounded-lg flex items-center justify-center"
+                    className="absolute top-2 right-2 w-7 h-7 bg-red-500/90 backdrop-blur-sm rounded-lg flex items-center justify-center"
                     data-testid="button-remove-image"
                   >
                     <X className="w-4 h-4 text-white" />
@@ -153,32 +159,44 @@ export function PrescriptionModal({ medicationName, onConfirm, onClose }: Prescr
                 </motion.div>
               ) : (
                 <div className="grid grid-cols-2 gap-3">
-                  {/* رفع من المعرض */}
-                  <button
+                  <motion.button
                     type="button"
+                    whileTap={{ scale: 0.95 }}
+                    transition={{ type: "spring", damping: 20, stiffness: 400 }}
                     onClick={() => fileInputRef.current?.click()}
-                    className="h-28 border-2 border-dashed border-slate-200 rounded-2xl flex flex-col items-center justify-center gap-2 text-slate-500 hover:border-emerald-400 hover:text-emerald-600 transition-colors"
+                    className="h-28 rounded-2xl flex flex-col items-center justify-center gap-2 text-slate-500
+                      bg-white/50 backdrop-blur-md
+                      border border-white/60 border-dashed
+                      hover:border-emerald-400/70 hover:text-emerald-600
+                      shadow-[0_4px_16px_rgb(0,0,0,0.05)]
+                      transition-colors"
                     data-testid="button-upload-image"
                   >
                     <Upload className="w-6 h-6" />
-                    <span className="text-xs font-medium">رفع صورة</span>
-                  </button>
+                    <span className="text-xs font-semibold">رفع صورة</span>
+                  </motion.button>
 
-                  {/* التقاط صورة */}
-                  <button
+                  <motion.button
                     type="button"
+                    whileTap={{ scale: 0.95 }}
+                    transition={{ type: "spring", damping: 20, stiffness: 400 }}
                     onClick={() => {
                       if (fileInputRef.current) {
                         fileInputRef.current.setAttribute("capture", "environment");
                         fileInputRef.current.click();
                       }
                     }}
-                    className="h-28 border-2 border-dashed border-slate-200 rounded-2xl flex flex-col items-center justify-center gap-2 text-slate-500 hover:border-emerald-400 hover:text-emerald-600 transition-colors"
+                    className="h-28 rounded-2xl flex flex-col items-center justify-center gap-2 text-slate-500
+                      bg-white/50 backdrop-blur-md
+                      border border-white/60 border-dashed
+                      hover:border-emerald-400/70 hover:text-emerald-600
+                      shadow-[0_4px_16px_rgb(0,0,0,0.05)]
+                      transition-colors"
                     data-testid="button-capture-image"
                   >
                     <Camera className="w-6 h-6" />
-                    <span className="text-xs font-medium">التقاط صورة</span>
-                  </button>
+                    <span className="text-xs font-semibold">التقاط صورة</span>
+                  </motion.button>
                 </div>
               )}
 
@@ -205,11 +223,14 @@ export function PrescriptionModal({ medicationName, onConfirm, onClose }: Prescr
                 onChange={handleDateChange}
                 max={today}
                 min={sixMonthsAgoStr}
-                className={`w-full h-12 px-4 rounded-xl border text-sm outline-none transition-colors ${
-                  dateError
-                    ? "border-red-400 bg-red-50 focus:ring-1 focus:ring-red-400"
-                    : "border-slate-200 bg-slate-50 focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400"
-                }`}
+                className={`w-full h-12 px-4 rounded-xl border text-sm outline-none transition-all
+                  bg-white/60 backdrop-blur-md
+                  shadow-[0_2px_8px_rgb(0,0,0,0.04)]
+                  ${
+                    dateError
+                      ? "border-red-400/60 bg-red-50/60 focus:ring-1 focus:ring-red-400"
+                      : "border-white/60 focus:border-emerald-400/60 focus:ring-1 focus:ring-emerald-400/40"
+                  }`}
                 data-testid="input-prescription-date"
               />
 
@@ -219,6 +240,7 @@ export function PrescriptionModal({ medicationName, onConfirm, onClose }: Prescr
                     initial={{ opacity: 0, height: 0 }}
                     animate={{ opacity: 1, height: "auto" }}
                     exit={{ opacity: 0, height: 0 }}
+                    transition={{ type: "spring", damping: 25, stiffness: 300 }}
                     className="flex items-start gap-1.5 mt-2 text-red-600"
                   >
                     <AlertTriangle className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
@@ -237,15 +259,25 @@ export function PrescriptionModal({ medicationName, onConfirm, onClose }: Prescr
               <button
                 type="button"
                 onClick={onClose}
-                className="flex-1 h-12 rounded-xl border border-slate-200 text-slate-600 font-semibold text-sm"
+                className="flex-1 h-12 rounded-xl font-semibold text-sm text-slate-600
+                  bg-white/60 backdrop-blur-md
+                  border border-white/60
+                  shadow-[0_2px_8px_rgb(0,0,0,0.05)]
+                  hover:bg-white/80 transition-colors"
               >
                 إلغاء
               </button>
               <motion.button
                 type="submit"
-                whileTap={{ scale: 0.97 }}
+                whileTap={{ scale: 0.96 }}
+                transition={{ type: "spring", damping: 20, stiffness: 400 }}
                 disabled={isSubmitting}
-                className="flex-1 h-12 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-bold text-sm disabled:opacity-60"
+                className="flex-1 h-12 rounded-xl font-bold text-sm text-white
+                  bg-gradient-to-r from-emerald-500/95 to-teal-500/95
+                  backdrop-blur-sm
+                  border border-white/20
+                  shadow-[0_4px_16px_rgba(16,185,129,0.35)]
+                  disabled:opacity-60 transition-opacity"
                 data-testid="button-confirm-prescription"
               >
                 {isSubmitting ? "جاري التحقق..." : "تأكيد الطلب"}

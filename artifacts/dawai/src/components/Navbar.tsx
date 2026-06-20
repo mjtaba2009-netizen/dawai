@@ -14,13 +14,16 @@ export function Navbar() {
 
   return (
     <motion.div
-      initial={{ y: -40, opacity: 0 }}
+      initial={{ y: -44, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
-      transition={{ type: 'spring', stiffness: 300, damping: 28 }}
-      className="sticky top-0 z-40 w-full bg-slate-800 shadow-lg shadow-slate-900/30"
+      transition={{ type: 'spring', damping: 25, stiffness: 300, mass: 0.8 }}
+      className="sticky top-0 z-40 w-full
+        bg-slate-900/70 backdrop-blur-2xl
+        border-b border-white/10
+        shadow-[0_8px_30px_rgb(0,0,0,0.18)]"
     >
       <div className="flex items-center justify-between px-4 h-11">
-        <span className="text-slate-300 text-xs font-medium">حساب صيدلية</span>
+        <span className="text-slate-300/80 text-xs font-medium tracking-wide">حساب صيدلية</span>
 
         {onDashboard ? (
           <div className="flex items-center gap-1.5 text-emerald-400">
@@ -30,13 +33,19 @@ export function Navbar() {
         ) : (
           <Link to="/dashboard">
             <motion.div
-              whileTap={{ scale: 0.95 }}
-              whileHover={{ scale: 1.03 }}
-              className="flex items-center gap-1.5 bg-emerald-500 hover:bg-emerald-400 transition-colors px-3 py-1.5 rounded-lg"
+              whileTap={{ scale: 0.93 }}
+              whileHover={{ scale: 1.04 }}
+              transition={{ type: 'spring', damping: 20, stiffness: 400 }}
+              className="flex items-center gap-1.5
+                bg-emerald-500/20 hover:bg-emerald-500/35
+                border border-emerald-400/30
+                backdrop-blur-sm
+                px-3 py-1.5 rounded-xl
+                transition-colors"
             >
-              <LayoutDashboard className="w-3.5 h-3.5 text-white" />
-              <span className="text-white text-xs font-bold whitespace-nowrap">لوحة إدارة الصيدلية</span>
-              <ChevronLeft className="w-3 h-3 text-emerald-200" />
+              <LayoutDashboard className="w-3.5 h-3.5 text-emerald-300" />
+              <span className="text-emerald-200 text-xs font-bold whitespace-nowrap">لوحة إدارة الصيدلية</span>
+              <ChevronLeft className="w-3 h-3 text-emerald-400/60" />
             </motion.div>
           </Link>
         )}
