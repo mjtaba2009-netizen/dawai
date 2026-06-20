@@ -1,0 +1,585 @@
+/**
+ * PharmacyRegistrationForm — نموذج تسجيل الصيدليات الجديدة
+ * ──────────────────────────────────────────────────────────────
+ * Stack: React + Tailwind CSS + Framer Motion
+ * Design: Dawai Emerald Glassmorphism — Mobile-first RTL
+ */
+import { useState, useRef, useCallback } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+
+// ═══════════════════════════════════════════════════════════════
+// Types
+// ═══════════════════════════════════════════════════════════════
+interface FormData {
+  fullName: string;
+  pharmacyName: string;
+  workingHours: string;
+  address: string;
+  governorate: string;
+  hasCode: boolean;
+  registrationCode: string;
+  certificateFile: File | null;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Sub-components
+// ═══════════════════════════════════════════════════════════════
+
+/** حقل إدخال موحد — emerald focus ring */
+function Field({
+  label, icon, children,
+}: { label: string; icon: string; children: React.ReactNode }) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <label className="flex items-center gap-1.5 text-sm font-semibold text-slate-700">
+        <span className="text-base">{icon}</span>
+        {label}
+      </label>
+      {children}
+    </div>
+  );
+}
+
+const inputClass =
+  "w-full bg-slate-50 text-slate-800 placeholder-slate-400 text-sm rounded-xl px-4 py-3 " +
+  "border border-transparent outline-none transition-all duration-200 " +
+  "focus:bg-white focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 " +
+  "hover:bg-slate-100/70";
+
+/** رأس القسم */
+function SectionHeader({ title, subtitle }: { title: string; subtitle?: string }) {
+  return (
+    <div className="flex items-center gap-3 mb-5">
+      <div className="h-5 w-1 bg-gradient-to-b from-emerald-400 to-teal-600 rounded-full" />
+      <div>
+        <h3 className="text-sm font-bold text-slate-800">{title}</h3>
+        {subtitle && <p className="text-xs text-slate-400 mt-0.5">{subtitle}</p>}
+      </div>
+    </div>
+  );
+}
+
+/** بطاقة قسم زجاجية */
+function Card({ children, className = "" }: { children: React.ReactNode; className?: string }) {
+  return (
+    <div
+      className={`bg-white/80 backdrop-blur-sm border border-slate-100 rounded-2xl p-5 shadow-sm ${className}`}
+    >
+      {children}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// GPS Modal
+// ═══════════════════════════════════════════════════════════════
+function GpsModal({ onClose }: { onClose: () => void }) {
+  return (
+    <motion.div
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+    >
+      {/* backdrop */}
+      <motion.div
+        className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+        onClick={onClose}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+      />
+
+      {/* modal card */}
+      <motion.div
+        className="relative bg-white rounded-3xl shadow-2xl p-7 w-full max-w-sm mx-auto z-10"
+        initial={{ y: 60, scale: 0.92, opacity: 0 }}
+        animate={{ y: 0, scale: 1, opacity: 1 }}
+        exit={{ y: 60, scale: 0.92, opacity: 0 }}
+        transition={{ type: "spring", stiffness: 300, damping: 28 }}
+      >
+        {/* pulse icon */}
+        <div className="flex justify-center mb-5">
+          <div className="relative">
+            <motion.div
+              className="absolute inset-0 rounded-full bg-emerald-400/30"
+              animate={{ scale: [1, 1.8], opacity: [0.5, 0] }}
+              transition={{ duration: 1.5, repeat: Infinity }}
+            />
+            <motion.div
+              className="absolute inset-0 rounded-full bg-emerald-400/20"
+              animate={{ scale: [1, 2.4], opacity: [0.3, 0] }}
+              transition={{ duration: 1.5, repeat: Infinity, delay: 0.4 }}
+            />
+            <div className="w-14 h-14 rounded-full bg-gradient-to-br from-emerald-400 to-teal-600 flex items-center justify-center shadow-lg">
+              <svg viewBox="0 0 24 24" className="w-7 h-7 text-white" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z" />
+                <circle cx="12" cy="9" r="2.5" />
+              </svg>
+            </div>
+          </div>
+        </div>
+
+        <h4 className="text-center text-base font-bold text-slate-800 mb-1.5" dir="rtl">
+          جاري تحديد الموقع
+        </h4>
+        <p className="text-center text-sm text-slate-500 mb-6" dir="rtl">
+          جاري تحديد الموقع عبر GPS...
+        </p>
+
+        {/* animated progress */}
+        <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden mb-6">
+          <motion.div
+            className="h-full bg-gradient-to-r from-emerald-400 to-teal-500 rounded-full"
+            initial={{ x: "-100%" }}
+            animate={{ x: "0%" }}
+            transition={{ duration: 2.5, ease: "easeInOut" }}
+          />
+        </div>
+
+        <button
+          onClick={onClose}
+          className="w-full py-3 rounded-xl bg-slate-100 text-slate-600 text-sm font-semibold hover:bg-slate-200 transition-colors"
+        >
+          إلغاء
+        </button>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Map Section
+// ═══════════════════════════════════════════════════════════════
+function MapSection({ onLocate }: { onLocate: () => void }) {
+  return (
+    <div
+      className="relative w-full rounded-2xl overflow-hidden"
+      style={{ height: 200 }}
+    >
+      {/* خلفية الخريطة المبسطة */}
+      <div className="absolute inset-0 bg-gradient-to-br from-slate-100 to-slate-200">
+        {/* شبكة الخريطة */}
+        <svg className="absolute inset-0 w-full h-full opacity-30" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <pattern id="mapgrid" width="32" height="32" patternUnits="userSpaceOnUse">
+              <path d="M 32 0 L 0 0 0 32" fill="none" stroke="#94a3b8" strokeWidth="0.5" />
+            </pattern>
+          </defs>
+          <rect width="100%" height="100%" fill="url(#mapgrid)" />
+        </svg>
+
+        {/* طرق مبسطة */}
+        <svg className="absolute inset-0 w-full h-full" xmlns="http://www.w3.org/2000/svg">
+          <line x1="0" y1="80"  x2="100%" y2="80"  stroke="#cbd5e1" strokeWidth="6" />
+          <line x1="0" y1="140" x2="100%" y2="140" stroke="#cbd5e1" strokeWidth="3" />
+          <line x1="120" y1="0" x2="120" y2="100%" stroke="#cbd5e1" strokeWidth="4" />
+          <line x1="240" y1="0" x2="240" y2="100%" stroke="#cbd5e1" strokeWidth="3" />
+          <rect x="130" y="90" width="100" height="40" rx="4" fill="#e2e8f0" />
+          <rect x="250" y="50" width="70"  height="55" rx="4" fill="#e2e8f0" />
+          <rect x="30"  y="90" width="80"  height="40" rx="4" fill="#e2e8f0" />
+        </svg>
+
+        {/* Pin الموقع في المركز */}
+        <motion.div
+          className="absolute"
+          style={{ top: "50%", left: "50%", transform: "translate(-50%, -100%)" }}
+          animate={{ y: [0, -6, 0] }}
+          transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+        >
+          <div className="relative">
+            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-emerald-400 to-teal-600 shadow-lg flex items-center justify-center border-2 border-white">
+              <div className="w-2.5 h-2.5 rounded-full bg-white" />
+            </div>
+            <div
+              className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-0 h-0"
+              style={{ borderLeft: "6px solid transparent", borderRight: "6px solid transparent", borderTop: "10px solid #059669" }}
+            />
+            {/* حلقة النبض */}
+            <motion.div
+              className="absolute -inset-2 rounded-full border-2 border-emerald-400/60"
+              animate={{ scale: [1, 1.8], opacity: [0.8, 0] }}
+              transition={{ duration: 1.5, repeat: Infinity }}
+            />
+          </div>
+        </motion.div>
+
+        {/* تعتيم خفيف من الأطراف */}
+        <div className="absolute inset-0 bg-gradient-to-b from-slate-50/30 via-transparent to-slate-50/50 pointer-events-none" />
+      </div>
+
+      {/* زر تحديد الموقع الزجاجي */}
+      <div className="absolute bottom-3 left-1/2 -translate-x-1/2">
+        <motion.button
+          whileHover={{ scale: 1.04 }}
+          whileTap={{ scale: 0.97 }}
+          onClick={onLocate}
+          className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-emerald-800 shadow-lg"
+          style={{
+            background: "rgba(255,255,255,0.85)",
+            backdropFilter: "blur(12px)",
+            border: "1px solid rgba(52,211,153,0.3)",
+            boxShadow: "0 4px 20px rgba(52,211,153,0.2), 0 2px 8px rgba(0,0,0,0.1)",
+          }}
+          dir="rtl"
+        >
+          <svg viewBox="0 0 24 24" className="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <circle cx="12" cy="12" r="3" />
+            <path d="M12 2v3M12 19v3M2 12h3M19 12h3" />
+          </svg>
+          تحديد الموقع على الخريطة
+        </motion.button>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// File Dropzone
+// ═══════════════════════════════════════════════════════════════
+function FileDropzone({
+  file, onChange,
+}: { file: File | null; onChange: (f: File) => void }) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [dragging, setDragging] = useState(false);
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setDragging(false);
+    const dropped = e.dataTransfer.files[0];
+    if (dropped) onChange(dropped);
+  }, [onChange]);
+
+  return (
+    <>
+      <input
+        ref={inputRef} type="file" accept="image/*,.pdf" className="hidden"
+        onChange={(e) => { if (e.target.files?.[0]) onChange(e.target.files[0]); }}
+      />
+      <motion.div
+        onClick={() => inputRef.current?.click()}
+        onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+        onDragLeave={() => setDragging(false)}
+        onDrop={handleDrop}
+        animate={{
+          borderColor: dragging ? "#34d399" : file ? "#10b981" : "#cbd5e1",
+          backgroundColor: dragging ? "rgba(52,211,153,0.06)" : file ? "rgba(16,185,129,0.04)" : "rgba(248,250,252,1)",
+        }}
+        className="relative w-full cursor-pointer rounded-2xl transition-colors p-6 flex flex-col items-center gap-3"
+        style={{ border: "2px dashed #cbd5e1" }}
+        whileHover={{ scale: 1.01 }}
+        whileTap={{ scale: 0.99 }}
+      >
+        {file ? (
+          <>
+            <div className="w-12 h-12 rounded-xl bg-emerald-50 flex items-center justify-center">
+              <svg viewBox="0 0 24 24" className="w-6 h-6 text-emerald-500" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+                <polyline points="14,2 14,8 20,8" />
+                <polyline points="9,15 12,18 15,15" />
+                <line x1="12" y1="18" x2="12" y2="11" />
+              </svg>
+            </div>
+            <div className="text-center" dir="rtl">
+              <p className="text-sm font-semibold text-emerald-700">{file.name}</p>
+              <p className="text-xs text-slate-400 mt-0.5">
+                {(file.size / 1024).toFixed(1)} KB — اضغط للتغيير
+              </p>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="w-12 h-12 rounded-xl bg-slate-100 flex items-center justify-center">
+              <svg viewBox="0 0 24 24" className="w-6 h-6 text-slate-400" fill="none" stroke="currentColor" strokeWidth="1.8">
+                <rect x="3" y="3" width="18" height="18" rx="3" />
+                <line x1="12" y1="8" x2="12" y2="16" />
+                <line x1="8" y1="12" x2="16" y2="12" />
+              </svg>
+            </div>
+            <div className="text-center" dir="rtl">
+              <p className="text-sm font-semibold text-slate-600">إضافة صورة جديدة</p>
+              <p className="text-xs text-slate-400 mt-0.5">ارفع رخصة الصيدلية (صورة أو PDF)</p>
+            </div>
+          </>
+        )}
+      </motion.div>
+    </>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Main Form Component
+// ═══════════════════════════════════════════════════════════════
+export function PharmacyRegistrationForm() {
+  const [form, setForm] = useState<FormData>({
+    fullName: "", pharmacyName: "", workingHours: "", address: "",
+    governorate: "", hasCode: false, registrationCode: "", certificateFile: null,
+  });
+  const [showGps, setShowGps]     = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+
+  const set = (key: keyof FormData, value: unknown) =>
+    setForm((f) => ({ ...f, [key]: value }));
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitted(true);
+    setTimeout(() => setSubmitted(false), 3000);
+  };
+
+  const governorates = ["البصرة", "بغداد", "أربيل", "الموصل", "النجف", "كربلاء", "Gmunden"];
+
+  return (
+    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100/50" dir="rtl">
+
+      {/* Header */}
+      <div
+        className="sticky top-0 z-30 px-4 pt-safe-top pb-4 pt-4"
+        style={{ background: "rgba(255,255,255,0.85)", backdropFilter: "blur(16px)", borderBottom: "1px solid rgba(0,0,0,0.06)" }}
+      >
+        <div className="max-w-lg mx-auto flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-400 to-teal-600 flex items-center justify-center shadow-md">
+            <svg viewBox="0 0 24 24" className="w-5 h-5 text-white" fill="none" stroke="currentColor" strokeWidth="2.2">
+              <path d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0H5m14 0h2M5 21H3" />
+              <path d="M9 7h6M9 11h6M9 15h4" />
+            </svg>
+          </div>
+          <div>
+            <h1 className="text-base font-bold text-slate-800">تسجيل صيدلية جديدة</h1>
+            <p className="text-xs text-slate-400">أدخل بيانات صيدليتك بدقة</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Form Body */}
+      <form onSubmit={handleSubmit} className="max-w-lg mx-auto px-4 py-5 space-y-4 pb-32">
+
+        {/* ── القسم الأول: البيانات الشخصية ── */}
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.05 }}
+        >
+          <Card>
+            <SectionHeader title="البيانات الشخصية" subtitle="معلومات المسؤول عن الصيدلية" />
+            <div className="space-y-3">
+              <Field label="الاسم الثلاثي" icon="👤">
+                <input
+                  className={inputClass} type="text" placeholder="مثال: أحمد محمد علي"
+                  value={form.fullName} onChange={(e) => set("fullName", e.target.value)}
+                />
+              </Field>
+            </div>
+          </Card>
+        </motion.div>
+
+        {/* ── القسم الثاني: بيانات الصيدلية ── */}
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+        >
+          <Card>
+            <SectionHeader title="بيانات الصيدلية" subtitle="المعلومات الرئيسية للصيدلية" />
+            <div className="space-y-3">
+              <Field label="اسم الصيدلية" icon="🏥">
+                <input
+                  className={inputClass} type="text" placeholder="مثال: صيدلية دوائي"
+                  value={form.pharmacyName} onChange={(e) => set("pharmacyName", e.target.value)}
+                />
+              </Field>
+
+              <Field label="أوقات العمل" icon="🕐">
+                <input
+                  className={inputClass} type="text" placeholder="مثال: 8 صباحاً – 11 مساءً"
+                  value={form.workingHours} onChange={(e) => set("workingHours", e.target.value)}
+                />
+              </Field>
+
+              <Field label="عنوان الصيدلية" icon="📍">
+                <input
+                  className={inputClass} type="text" placeholder="الشارع، الحي، رقم البناية..."
+                  value={form.address} onChange={(e) => set("address", e.target.value)}
+                />
+              </Field>
+
+              <Field label="محافظة الصيدلية" icon="🗺️">
+                <select
+                  className={inputClass + " appearance-none cursor-pointer"}
+                  value={form.governorate}
+                  onChange={(e) => set("governorate", e.target.value)}
+                  style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E\")", backgroundRepeat: "no-repeat", backgroundPosition: "left 12px center", backgroundSize: "16px", paddingLeft: "36px" }}
+                >
+                  <option value="">اختر المحافظة</option>
+                  {governorates.map((g) => (
+                    <option key={g} value={g}>{g}</option>
+                  ))}
+                </select>
+              </Field>
+            </div>
+          </Card>
+        </motion.div>
+
+        {/* ── القسم الثالث: كود التسجيل ── */}
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.15 }}
+        >
+          <Card>
+            <SectionHeader title="كود التسجيل" subtitle="اختياري — إذا حصلت على كود خاص" />
+
+            {/* Checkbox */}
+            <label className="flex items-center gap-3 cursor-pointer select-none group">
+              <div
+                className="relative w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all duration-200 flex-shrink-0"
+                style={{
+                  borderColor: form.hasCode ? "#10b981" : "#cbd5e1",
+                  background: form.hasCode ? "#10b981" : "white",
+                }}
+              >
+                <input
+                  type="checkbox" className="sr-only"
+                  checked={form.hasCode}
+                  onChange={(e) => set("hasCode", e.target.checked)}
+                />
+                <AnimatePresence>
+                  {form.hasCode && (
+                    <motion.svg
+                      initial={{ scale: 0, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      exit={{ scale: 0, opacity: 0 }}
+                      transition={{ type: "spring", stiffness: 400, damping: 20 }}
+                      viewBox="0 0 24 24" className="w-3 h-3 text-white"
+                      fill="none" stroke="currentColor" strokeWidth="3"
+                    >
+                      <polyline points="20,6 9,17 4,12" />
+                    </motion.svg>
+                  )}
+                </AnimatePresence>
+              </div>
+              <span className="text-sm font-medium text-slate-700 group-hover:text-slate-900 transition-colors">
+                هل يوجد لديك كود تسجيل؟
+              </span>
+            </label>
+
+            {/* Animated code input */}
+            <AnimatePresence>
+              {form.hasCode && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0, y: -8 }}
+                  animate={{ height: "auto", opacity: 1, y: 0 }}
+                  exit={{ height: 0, opacity: 0, y: -8 }}
+                  transition={{ type: "spring", stiffness: 280, damping: 28 }}
+                  className="overflow-hidden"
+                >
+                  <div className="mt-3 pt-3 border-t border-slate-100">
+                    <Field label="كود التسجيل" icon="🔑">
+                      <input
+                        className={inputClass} type="text"
+                        placeholder="أدخل كود التسجيل هنا..."
+                        value={form.registrationCode}
+                        onChange={(e) => set("registrationCode", e.target.value)}
+                        autoFocus
+                      />
+                    </Field>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </Card>
+        </motion.div>
+
+        {/* ── القسم الرابع: شهادة الصيدلية ── */}
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+        >
+          <Card>
+            <SectionHeader title="شهادة الصيدلية" subtitle="رفع رخصة مزاولة المهنة" />
+            <FileDropzone
+              file={form.certificateFile}
+              onChange={(f) => set("certificateFile", f)}
+            />
+          </Card>
+        </motion.div>
+
+        {/* ── القسم الخامس: موقع الصيدلية ── */}
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.25 }}
+        >
+          <Card className="!p-4">
+            <SectionHeader title="موقع الصيدلية" subtitle="حدد الموقع الجغرافي للصيدلية" />
+            <MapSection onLocate={() => setShowGps(true)} />
+          </Card>
+        </motion.div>
+
+      </form>
+
+      {/* ── زر الحفظ الثابت أسفل الشاشة ── */}
+      <div
+        className="fixed bottom-0 left-0 right-0 z-20 px-4 pb-safe-bottom pb-6 pt-4"
+        style={{ background: "rgba(255,255,255,0.9)", backdropFilter: "blur(16px)", borderTop: "1px solid rgba(0,0,0,0.06)" }}
+      >
+        <div className="max-w-lg mx-auto">
+          <motion.button
+            type="submit"
+            form="pharmacy-form"
+            whileHover={{ scale: 1.01 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={handleSubmit}
+            className="w-full py-4 rounded-2xl text-white font-bold text-base shadow-lg relative overflow-hidden"
+            style={{
+              background: submitted
+                ? "linear-gradient(135deg, #10b981, #059669)"
+                : "linear-gradient(135deg, #34d399, #0d9488)",
+              boxShadow: "0 4px 24px rgba(52,211,153,0.4), 0 2px 8px rgba(0,0,0,0.1)",
+            }}
+            dir="rtl"
+          >
+            <AnimatePresence mode="wait">
+              {submitted ? (
+                <motion.span
+                  key="done"
+                  className="flex items-center justify-center gap-2"
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -12 }}
+                >
+                  <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <polyline points="20,6 9,17 4,12" />
+                  </svg>
+                  تم الحفظ بنجاح!
+                </motion.span>
+              ) : (
+                <motion.span
+                  key="save"
+                  className="flex items-center justify-center gap-2"
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -12 }}
+                >
+                  <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z" />
+                    <polyline points="17,21 17,13 7,13 7,21" />
+                    <polyline points="7,3 7,8 15,8" />
+                  </svg>
+                  حفظ المعلومات
+                </motion.span>
+              )}
+            </AnimatePresence>
+          </motion.button>
+        </div>
+      </div>
+
+      {/* ── GPS Modal ── */}
+      <AnimatePresence>
+        {showGps && <GpsModal onClose={() => setShowGps(false)} />}
+      </AnimatePresence>
+
+    </div>
+  );
+}

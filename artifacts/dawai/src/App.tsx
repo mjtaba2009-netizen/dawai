@@ -18,6 +18,7 @@ import { Orders } from '@/pages/Orders';
 import { Notifications } from '@/pages/Notifications';
 import { Account } from '@/pages/Account';
 import { PharmacyDashboard } from '@/pages/PharmacyDashboard';
+import { PharmacyRegister } from '@/pages/PharmacyRegister';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -47,6 +48,7 @@ const AppRoutes = () => {
       {user.role === 'pharmacy' && (
         <Route path="/dashboard" element={<PharmacyDashboard />} />
       )}
+      <Route path="/pharmacy-register" element={<PharmacyRegister />} />
 
       <Route
         path="*"
