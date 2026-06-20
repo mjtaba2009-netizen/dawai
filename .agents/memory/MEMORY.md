@@ -1,0 +1,1 @@
+- [Dawai app zod-in-api-server](dawai-zod-dep.md) — zod must be added as a direct dep to api-server; importing from zod/v4 or zod fails if not listed in package.json.

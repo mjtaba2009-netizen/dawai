@@ -1,11 +1,13 @@
 import { useSearch, useLocation } from "wouter";
-import { motion } from "framer-motion";
+import { useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { ArrowRight, MapPin, MessageCircle, ShoppingBag, Star } from "lucide-react";
 import { useSearchMedications, useCreateOrder, getGetOrdersQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
+import { PrescriptionModal } from "@/components/PrescriptionModal";
 
-// Skeleton loader لنتيجة صيدلية
+// Skeleton loader
 function PharmacyResultSkeleton() {
   return (
     <div className="animate-pulse bg-white rounded-2xl p-4 shadow-sm border border-slate-100">
@@ -25,10 +27,12 @@ function PharmacyResultSkeleton() {
   );
 }
 
-// بطاقة صيدلية في نتائج البحث
+// بطاقة نتيجة صيدلية
 function PharmacyResultCard({
   pharmacyId,
   medicationId,
+  medicationName,
+  requiresPrescription,
   pharmacyName,
   address,
   distance,
@@ -41,6 +45,8 @@ function PharmacyResultCard({
 }: {
   pharmacyId: number;
   medicationId: number;
+  medicationName: string;
+  requiresPrescription: boolean;
   pharmacyName: string;
   address: string;
   distance: number;
@@ -54,119 +60,134 @@ function PharmacyResultCard({
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const createOrder = useCreateOrder();
+  const [showPrescription, setShowPrescription] = useState(false);
 
-  const handleReserve = () => {
+  const doReserve = () => {
     createOrder.mutate(
       { data: { pharmacyId, medicationId, quantity: 1 } },
       {
         onSuccess: () => {
           queryClient.invalidateQueries({ queryKey: getGetOrdersQueryKey() });
-          toast({
-            title: "تم الحجز بنجاح",
-            description: `تم حجز الدواء من ${pharmacyName}`,
-          });
+          toast({ title: "تم الحجز بنجاح", description: `تم حجز الدواء من ${pharmacyName}` });
         },
         onError: () => {
-          toast({
-            title: "فشل الحجز",
-            description: "يرجى المحاولة مرة أخرى",
-            variant: "destructive",
-          });
+          toast({ title: "فشل الحجز", description: "يرجى المحاولة مرة أخرى", variant: "destructive" });
         },
       }
     );
   };
 
-  const handleWhatsApp = () => {
-    const number = whatsapp?.replace(/\D/g, "") || "";
-    if (number) {
-      window.open(`https://wa.me/${number}`, "_blank");
+  const handleReserveClick = () => {
+    // Show prescription modal if required
+    if (requiresPrescription) {
+      setShowPrescription(true);
+    } else {
+      doReserve();
     }
   };
 
+  const handleWhatsApp = () => {
+    const number = whatsapp?.replace(/\D/g, "") || "";
+    if (number) window.open(`https://wa.me/${number}`, "_blank");
+  };
+
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: index * 0.1, duration: 0.4 }}
-      className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100"
-      data-testid={`card-pharmacy-result-${index}`}
-    >
-      <div className="flex items-start gap-3">
-        {/* أيقونة الصيدلية */}
-        <div className="w-12 h-12 flex-shrink-0 bg-gradient-to-br from-emerald-100 to-teal-200 rounded-xl flex items-center justify-center text-xl">
-          🏪
-        </div>
-
-        <div className="flex-1 min-w-0">
-          {/* اسم الصيدلية */}
-          <div className="flex items-center gap-2 mb-0.5">
-            <p className="font-bold text-slate-800 truncate">{pharmacyName}</p>
-            <span
-              className={`flex-shrink-0 text-[10px] px-2 py-0.5 rounded-full font-medium ${
-                isOpen ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-500"
-              }`}
-            >
-              {isOpen ? "مفتوح" : "مغلق"}
-            </span>
+    <>
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: index * 0.1, duration: 0.4 }}
+        className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100"
+        data-testid={`card-pharmacy-result-${index}`}
+      >
+        <div className="flex items-start gap-3">
+          <div className="w-12 h-12 flex-shrink-0 bg-gradient-to-br from-emerald-100 to-teal-200 rounded-xl flex items-center justify-center text-xl">
+            🏪
           </div>
 
-          {/* العنوان والمسافة */}
-          <div className="flex items-center gap-1 text-slate-400 text-xs mb-2">
-            <MapPin className="w-3 h-3" />
-            <span className="truncate">{address}</span>
-            <span className="text-slate-300">•</span>
-            <span className="flex-shrink-0">
-              {distance < 1
-                ? `${Math.round(distance * 1000)} م`
-                : `${distance.toFixed(1)} كم`}
-            </span>
-          </div>
-
-          {/* السعر والكمية والتقييم */}
-          <div className="flex items-center gap-3">
-            <div className="bg-emerald-50 rounded-lg px-3 py-1">
-              <span className="text-emerald-700 font-bold text-sm">{price.toFixed(2)}</span>
-              <span className="text-emerald-600 text-xs mr-0.5">ر.س</span>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-0.5">
+              <p className="font-bold text-slate-800 truncate">{pharmacyName}</p>
+              <span
+                className={`flex-shrink-0 text-[10px] px-2 py-0.5 rounded-full font-medium ${
+                  isOpen ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-500"
+                }`}
+              >
+                {isOpen ? "مفتوح" : "مغلق"}
+              </span>
             </div>
-            <span className="text-slate-500 text-xs">الكمية: {quantity}</span>
-            {rating !== null && (
-              <div className="flex items-center gap-0.5">
-                <Star className="w-3 h-3 text-amber-400 fill-amber-400" />
-                <span className="text-xs text-slate-500">{rating.toFixed(1)}</span>
+
+            <div className="flex items-center gap-1 text-slate-400 text-xs mb-2">
+              <MapPin className="w-3 h-3" />
+              <span className="truncate">{address}</span>
+              <span className="text-slate-300">•</span>
+              <span className="flex-shrink-0">
+                {distance < 1 ? `${Math.round(distance * 1000)} م` : `${distance.toFixed(1)} كم`}
+              </span>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <div className="bg-emerald-50 rounded-lg px-3 py-1">
+                <span className="text-emerald-700 font-bold text-sm">{price.toFixed(2)}</span>
+                <span className="text-emerald-600 text-xs mr-0.5">ر.س</span>
               </div>
-            )}
+              <span className="text-slate-500 text-xs">الكمية: {quantity}</span>
+              {rating !== null && (
+                <div className="flex items-center gap-0.5">
+                  <Star className="w-3 h-3 text-amber-400 fill-amber-400" />
+                  <span className="text-xs text-slate-500">{rating.toFixed(1)}</span>
+                </div>
+              )}
+              {requiresPrescription && (
+                <span className="text-[10px] px-2 py-0.5 bg-amber-50 text-amber-600 rounded-full font-medium flex-shrink-0">
+                  وصفة
+                </span>
+              )}
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* أزرار الإجراءات */}
-      <div className="flex gap-2 mt-4">
-        {whatsapp && (
+        <div className="flex gap-2 mt-4">
+          {whatsapp && (
+            <motion.button
+              whileTap={{ scale: 0.95 }}
+              whileHover={{ scale: 1.02 }}
+              onClick={handleWhatsApp}
+              className="flex-1 h-10 flex items-center justify-center gap-2 rounded-xl bg-green-500 text-white font-semibold text-sm"
+              data-testid={`button-whatsapp-${index}`}
+            >
+              <MessageCircle className="w-4 h-4" />
+              واتساب
+            </motion.button>
+          )}
           <motion.button
             whileTap={{ scale: 0.95 }}
             whileHover={{ scale: 1.02 }}
-            onClick={handleWhatsApp}
-            className="flex-1 h-10 flex items-center justify-center gap-2 rounded-xl bg-green-500 text-white font-semibold text-sm"
-            data-testid={`button-whatsapp-${index}`}
+            onClick={handleReserveClick}
+            disabled={!isOpen || quantity === 0 || createOrder.isPending}
+            className="flex-1 h-10 flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-semibold text-sm disabled:opacity-50"
+            data-testid={`button-reserve-${index}`}
           >
-            <MessageCircle className="w-4 h-4" />
-            واتساب
+            <ShoppingBag className="w-4 h-4" />
+            {createOrder.isPending ? "جاري الحجز..." : "احجز الآن"}
           </motion.button>
+        </div>
+      </motion.div>
+
+      {/* نافذة الوصفة الطبية */}
+      <AnimatePresence>
+        {showPrescription && (
+          <PrescriptionModal
+            medicationName={medicationName}
+            onConfirm={() => {
+              setShowPrescription(false);
+              doReserve();
+            }}
+            onClose={() => setShowPrescription(false)}
+          />
         )}
-        <motion.button
-          whileTap={{ scale: 0.95 }}
-          whileHover={{ scale: 1.02 }}
-          onClick={handleReserve}
-          disabled={!isOpen || quantity === 0 || createOrder.isPending}
-          className="flex-1 h-10 flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-semibold text-sm disabled:opacity-50"
-          data-testid={`button-reserve-${index}`}
-        >
-          <ShoppingBag className="w-4 h-4" />
-          {createOrder.isPending ? "جاري الحجز..." : "احجز الآن"}
-        </motion.button>
-      </div>
-    </motion.div>
+      </AnimatePresence>
+    </>
   );
 }
 
@@ -217,9 +238,7 @@ export function Search() {
           >
             <div className="text-5xl mb-4">🔍</div>
             <h3 className="text-slate-700 font-bold text-lg mb-2">لم نجد نتائج</h3>
-            <p className="text-slate-400 text-sm">
-              لا يوجد دواء بهذا الاسم في قاعدة بياناتنا
-            </p>
+            <p className="text-slate-400 text-sm">لا يوجد دواء بهذا الاسم في قاعدة بياناتنا</p>
           </motion.div>
         ) : (
           <>
@@ -250,7 +269,6 @@ export function Search() {
               </div>
             </motion.div>
 
-            {/* عدد الصيدليات */}
             {data.pharmacies.length > 0 ? (
               <>
                 <p className="text-slate-500 text-sm font-medium">
@@ -261,6 +279,8 @@ export function Search() {
                     key={hit.pharmacy.id}
                     pharmacyId={hit.pharmacy.id}
                     medicationId={data.medication!.id}
+                    medicationName={data.medication!.name}
+                    requiresPrescription={data.medication!.requiresPrescription ?? false}
                     pharmacyName={hit.pharmacy.name}
                     address={hit.pharmacy.address}
                     distance={hit.pharmacy.distance}
@@ -281,9 +301,7 @@ export function Search() {
               >
                 <div className="text-4xl mb-3">😔</div>
                 <h3 className="text-slate-700 font-bold mb-1">غير متوفر حالياً</h3>
-                <p className="text-slate-400 text-sm">
-                  هذا الدواء غير متوفر في الصيدليات القريبة منك
-                </p>
+                <p className="text-slate-400 text-sm">هذا الدواء غير متوفر في الصيدليات القريبة منك</p>
               </motion.div>
             )}
           </>

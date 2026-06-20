@@ -1,19 +1,7 @@
 import { motion } from "framer-motion";
-import { useLocation } from "wouter";
-import {
-  User,
-  Bell,
-  Lock,
-  HelpCircle,
-  Star,
-  LogOut,
-  ChevronLeft,
-  Shield,
-  Phone,
-} from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
+import { User, Bell, Lock, HelpCircle, Star, LogOut, ChevronLeft, Shield, Phone } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
 
-// بند الإعدادات
 function SettingItem({
   icon: Icon,
   label,
@@ -42,33 +30,14 @@ function SettingItem({
       <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${iconBg}`}>
         <Icon className={`w-5 h-5 ${iconColor}`} />
       </div>
-      <span className="flex-1 text-slate-700 font-medium text-sm text-right">
-        {label}
-      </span>
+      <span className="flex-1 text-slate-700 font-medium text-sm text-right">{label}</span>
       <ChevronLeft className="w-4 h-4 text-slate-300 flex-shrink-0" />
     </motion.button>
   );
 }
 
 export function Account() {
-  const [, setLocation] = useLocation();
-  const { toast } = useToast();
-
-  // بيانات المستخدم من localStorage
-  let user = { name: "المستخدم", phone: "" };
-  try {
-    const stored = localStorage.getItem("user");
-    if (stored) user = JSON.parse(stored);
-  } catch {
-    // تجاهل الأخطاء
-  }
-
-  const handleLogout = () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
-    toast({ title: "تم تسجيل الخروج" });
-    setLocation("/login");
-  };
+  const { user, logout } = useAuth();
 
   const settingsGroups = [
     {
@@ -99,18 +68,15 @@ export function Account() {
 
   return (
     <div className="flex-1 flex flex-col bg-muted/20">
-      {/* الرأس مع صورة الملف الشخصي */}
       <div className="bg-gradient-to-br from-emerald-500 to-teal-600 px-5 pt-10 pb-8">
         <div className="flex items-center gap-4">
           <div className="w-16 h-16 bg-white/20 backdrop-blur rounded-2xl flex items-center justify-center flex-shrink-0 border-2 border-white/40">
             <User className="w-8 h-8 text-white" />
           </div>
           <div>
-            <h2 className="text-white text-xl font-bold">{user.name}</h2>
-            {user.phone && (
-              <p className="text-emerald-100 text-sm mt-0.5" dir="ltr">
-                {user.phone}
-              </p>
+            <h2 className="text-white text-xl font-bold">{user?.name ?? "المستخدم"}</h2>
+            {user?.phone && (
+              <p className="text-emerald-100 text-sm mt-0.5" dir="ltr">{user.phone}</p>
             )}
           </div>
         </div>
@@ -119,9 +85,7 @@ export function Account() {
       <div className="flex-1 px-4 pt-5 pb-4 space-y-5 overflow-y-auto">
         {settingsGroups.map((group) => (
           <div key={group.title}>
-            <h3 className="text-slate-400 text-xs font-semibold mb-2 px-1">
-              {group.title}
-            </h3>
+            <h3 className="text-slate-400 text-xs font-semibold mb-2 px-1">{group.title}</h3>
             <div className="space-y-2">
               {group.items.map((item) => {
                 const idx = globalIndex++;
@@ -140,15 +104,14 @@ export function Account() {
           </div>
         ))}
 
-        {/* زر تسجيل الخروج */}
         <motion.button
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.5 }}
           whileTap={{ scale: 0.97 }}
           whileHover={{ scale: 1.01 }}
-          onClick={handleLogout}
-          className="w-full h-13 py-4 flex items-center justify-center gap-2 rounded-2xl bg-red-50 border border-red-100 text-red-600 font-bold"
+          onClick={logout}
+          className="w-full py-4 flex items-center justify-center gap-2 rounded-2xl bg-red-50 border border-red-100 text-red-600 font-bold"
           data-testid="button-logout"
         >
           <LogOut className="w-5 h-5" />

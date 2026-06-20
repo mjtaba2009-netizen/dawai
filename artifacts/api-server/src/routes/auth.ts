@@ -1,9 +1,32 @@
 import { Router, type IRouter } from "express";
 import { db, usersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
-import { LoginBody, RegisterBody } from "@workspace/api-zod";
+import { z } from "zod";
 
 const router: IRouter = Router();
+
+const LoginBody = z.object({
+  phone: z.string().min(1),
+  password: z.string().min(1),
+});
+
+const RegisterBody = z.object({
+  name: z.string().min(1),
+  phone: z.string().min(1),
+  password: z.string().min(1),
+  role: z.enum(["patient", "pharmacy"]).default("patient"),
+});
+
+function formatUser(user: typeof usersTable.$inferSelect) {
+  return {
+    id: user.id,
+    name: user.name,
+    phone: user.phone,
+    avatar: user.avatar ?? null,
+    role: user.role as "patient" | "pharmacy",
+    pharmacyId: user.pharmacyId ?? null,
+  };
+}
 
 // تسجيل الدخول
 router.post("/auth/login", async (req, res): Promise<void> => {
@@ -25,15 +48,7 @@ router.post("/auth/login", async (req, res): Promise<void> => {
 
   const token = Buffer.from(`${user.id}:${user.phone}`).toString("base64");
 
-  res.json({
-    token,
-    user: {
-      id: user.id,
-      name: user.name,
-      phone: user.phone,
-      avatar: user.avatar ?? null,
-    },
-  });
+  res.json({ token, user: formatUser(user) });
 });
 
 // إنشاء حساب جديد
@@ -60,20 +75,13 @@ router.post("/auth/register", async (req, res): Promise<void> => {
       name: parsed.data.name,
       phone: parsed.data.phone,
       password: parsed.data.password,
+      role: parsed.data.role,
     })
     .returning();
 
   const token = Buffer.from(`${user.id}:${user.phone}`).toString("base64");
 
-  res.status(201).json({
-    token,
-    user: {
-      id: user.id,
-      name: user.name,
-      phone: user.phone,
-      avatar: user.avatar ?? null,
-    },
-  });
+  res.status(201).json({ token, user: formatUser(user) });
 });
 
 export default router;

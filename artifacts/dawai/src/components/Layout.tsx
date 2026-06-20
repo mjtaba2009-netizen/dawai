@@ -2,10 +2,17 @@ import { ReactNode } from "react";
 import { BottomNav } from "./BottomNav";
 import { useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
+import { useAuth } from "@/contexts/AuthContext";
 
 export function Layout({ children }: { children: ReactNode }) {
   const [location] = useLocation();
+  const { isAuthenticated, isPharmacy } = useAuth();
+
   const isLogin = location === "/login";
+  const isPharmacyDashboard = location === "/pharmacy-dashboard";
+
+  // Show bottom nav only for authenticated patients (not pharmacy, not login)
+  const showBottomNav = isAuthenticated && !isPharmacy && !isLogin && !isPharmacyDashboard;
 
   return (
     <div className="min-h-[100dvh] bg-muted/30 flex justify-center">
@@ -17,12 +24,12 @@ export function Layout({ children }: { children: ReactNode }) {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
             transition={{ duration: 0.2 }}
-            className={`flex-1 flex flex-col ${!isLogin ? "pb-20" : ""}`}
+            className={`flex-1 flex flex-col ${showBottomNav ? "pb-20" : ""}`}
           >
             {children}
           </motion.main>
         </AnimatePresence>
-        {!isLogin && <BottomNav />}
+        {showBottomNav && <BottomNav />}
       </div>
     </div>
   );
