@@ -47,17 +47,17 @@ const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 function usePharmacyApi(token: string | undefined) {
   const h = { "Content-Type": "application/json", Authorization: `Bearer ${token ?? ""}` };
 
-  const get  = async <T>(path: string): Promise<T> => {
+  const get  = async <T,>(path: string): Promise<T> => {
     const res = await fetch(`${BASE}${path}`, { headers: h });
     if (!res.ok) throw new Error((await res.json())?.error ?? "خطأ");
     return res.json();
   };
-  const post = async <T>(path: string, body: object): Promise<T> => {
+  const post = async <T,>(path: string, body: object): Promise<T> => {
     const res = await fetch(`${BASE}${path}`, { method: "POST", headers: h, body: JSON.stringify(body) });
     if (!res.ok) throw new Error((await res.json())?.error ?? "خطأ");
     return res.json();
   };
-  const put  = async <T>(path: string, body: object): Promise<T> => {
+  const put  = async <T,>(path: string, body: object): Promise<T> => {
     const res = await fetch(`${BASE}${path}`, { method: "PUT", headers: h, body: JSON.stringify(body) });
     if (!res.ok) throw new Error((await res.json())?.error ?? "خطأ");
     return res.json();
