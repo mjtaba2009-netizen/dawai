@@ -1,7 +1,22 @@
 import { Router, type IRouter } from "express";
-import { db, ordersTable, medicationsTable, pharmaciesTable, pharmacyMedicationsTable } from "@workspace/db";
-import { eq, and } from "drizzle-orm";
+import { db, ordersTable, medicationsTable, pharmaciesTable, pharmacyMedicationsTable, usersTable } from "@workspace/db";
+import { eq, and, desc } from "drizzle-orm";
 import { CreateOrderBody, GetOrderParams } from "@workspace/api-zod";
+import { z } from "zod";
+
+// دالة مساعدة لإيجاد مستخدم الصيدلية
+async function getPharmacyUser(req: { headers: { authorization?: string } }) {
+  const auth = req.headers.authorization;
+  if (!auth?.startsWith("Bearer ")) return null;
+  try {
+    const decoded = Buffer.from(auth.slice(7), "base64").toString("utf-8");
+    const [idStr] = decoded.split(":");
+    const id = parseInt(idStr, 10);
+    if (isNaN(id)) return null;
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, id));
+    return user?.role === "pharmacy" && user.pharmacyId ? user : null;
+  } catch { return null; }
+}
 
 const router: IRouter = Router();
 
@@ -139,6 +154,65 @@ router.post("/orders", async (req, res): Promise<void> => {
   const orderWithDetails = await getOrderWithDetails(order.id);
 
   res.status(201).json(orderWithDetails);
+});
+
+// GET /pharmacy/orders — طلبات واردة للصيدلية
+router.get("/pharmacy/orders", async (req, res): Promise<void> => {
+  const user = await getPharmacyUser(req as any);
+  if (!user) { res.status(403).json({ error: "غير مصرح" }); return; }
+
+  const rows = await db
+    .select({ order: ordersTable, medication: medicationsTable })
+    .from(ordersTable)
+    .innerJoin(medicationsTable, eq(ordersTable.medicationId, medicationsTable.id))
+    .where(eq(ordersTable.pharmacyId, user.pharmacyId!))
+    .orderBy(desc(ordersTable.createdAt));
+
+  res.json(rows.map((r) => ({
+    id: r.order.id,
+    status: r.order.status,
+    quantity: r.order.quantity,
+    totalPrice: r.order.totalPrice,
+    createdAt: r.order.createdAt.toISOString(),
+    updatedAt: r.order.updatedAt.toISOString(),
+    medication: {
+      id: r.medication.id,
+      name: r.medication.name,
+      genericName: r.medication.genericName,
+      requiresPrescription: r.medication.requiresPrescription,
+    },
+  })));
+});
+
+// PUT /pharmacy/orders/:id/status — تحديث حالة الطلب
+router.put("/pharmacy/orders/:id/status", async (req, res): Promise<void> => {
+  const user = await getPharmacyUser(req as any);
+  if (!user) { res.status(403).json({ error: "غير مصرح" }); return; }
+
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) { res.status(400).json({ error: "معرف غير صالح" }); return; }
+
+  const { status } = z.object({
+    status: z.enum(["confirmed", "ready", "rejected", "timeout"]),
+  }).parse(req.body);
+
+  const [existing] = await db
+    .select()
+    .from(ordersTable)
+    .where(and(eq(ordersTable.id, id), eq(ordersTable.pharmacyId, user.pharmacyId!)));
+
+  if (!existing) { res.status(404).json({ error: "الطلب غير موجود" }); return; }
+
+  // TODO: Connect to n8n Webhook to trigger automated WhatsApp notification to the patient
+  // fetch(process.env.N8N_WEBHOOK_URL, { method: "POST", body: JSON.stringify({ orderId: id, status, patientPhone: "..." }) })
+
+  const [updated] = await db
+    .update(ordersTable)
+    .set({ status, updatedAt: new Date() })
+    .where(eq(ordersTable.id, id))
+    .returning();
+
+  res.json({ id: updated.id, status: updated.status });
 });
 
 // تفاصيل طلب

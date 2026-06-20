@@ -1,39 +1,35 @@
 import { motion } from "framer-motion";
 import { Package } from "lucide-react";
 import { useGetOrders } from "@workspace/api-client-react";
+import { OrderTracker } from "@/components/OrderTracker";
 
-// حالات الطلب بالعربية وألوانها
-const STATUS_MAP: Record<string, { label: string; classes: string }> = {
-  pending: { label: "قيد الانتظار", classes: "bg-amber-50 text-amber-700" },
-  confirmed: { label: "مؤكد", classes: "bg-blue-50 text-blue-700" },
-  ready: { label: "جاهز للاستلام", classes: "bg-emerald-50 text-emerald-700" },
-  completed: { label: "مكتمل", classes: "bg-slate-100 text-slate-600" },
-  cancelled: { label: "ملغي", classes: "bg-red-50 text-red-600" },
-};
+const ACTIVE_STATUSES = new Set(["pending", "confirmed", "ready"]);
 
-// تنسيق التاريخ
 function formatDate(isoString: string) {
-  const date = new Date(isoString);
-  return date.toLocaleDateString("ar-SA", {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
+  return new Date(isoString).toLocaleDateString("ar-SA", {
+    year: "numeric", month: "long", day: "numeric",
   });
 }
 
-// Skeleton loader
+const STATUS_MAP: Record<string, { label: string; classes: string }> = {
+  pending:   { label: "قيد المراجعة",    classes: "bg-amber-50 text-amber-700"   },
+  confirmed: { label: "تم التأكيد",      classes: "bg-blue-50 text-blue-700"     },
+  ready:     { label: "جاهز للاستلام",  classes: "bg-emerald-50 text-emerald-700" },
+  completed: { label: "مكتمل",           classes: "bg-slate-100 text-slate-600"  },
+  cancelled: { label: "ملغي",            classes: "bg-red-50 text-red-600"       },
+  rejected:  { label: "مرفوض",           classes: "bg-red-50 text-red-600"       },
+  timeout:   { label: "انتهى الوقت",     classes: "bg-orange-50 text-orange-600" },
+};
+
 function OrderSkeleton() {
   return (
-    <div className="animate-pulse bg-white rounded-2xl p-4 shadow-sm border border-slate-100">
+    <div className="animate-pulse bg-white/70 backdrop-blur-sm rounded-2xl p-4 border border-white/60 shadow-sm">
       <div className="flex items-start gap-3">
         <div className="w-12 h-12 bg-slate-200 rounded-xl flex-shrink-0" />
         <div className="flex-1 space-y-2">
           <div className="h-4 bg-slate-200 rounded w-2/3" />
           <div className="h-3 bg-slate-200 rounded w-1/2" />
-          <div className="flex gap-2">
-            <div className="h-5 bg-slate-200 rounded-full w-20" />
-            <div className="h-5 bg-slate-200 rounded-full w-16" />
-          </div>
+          <div className="h-14 bg-slate-100 rounded-xl w-full mt-3" />
         </div>
       </div>
     </div>
@@ -43,13 +39,15 @@ function OrderSkeleton() {
 export function Orders() {
   const { data: orders, isLoading } = useGetOrders();
 
+  const active    = orders?.filter((o) => ACTIVE_STATUSES.has(o.status)) ?? [];
+  const completed = orders?.filter((o) => !ACTIVE_STATUSES.has(o.status)) ?? [];
+
   return (
     <div className="flex-1 flex flex-col bg-muted/20">
-      {/* الرأس */}
       <div className="bg-gradient-to-br from-emerald-500 to-teal-600 px-5 pt-10 pb-6">
         <h1 className="text-white text-xl font-bold">طلباتي</h1>
         <p className="text-emerald-100 text-sm mt-1">
-          {orders ? `${orders.length} طلب` : "جاري التحميل..."}
+          {isLoading ? "جاري التحميل..." : `${orders?.length ?? 0} طلب`}
         </p>
       </div>
 
@@ -69,56 +67,79 @@ export function Orders() {
             <p className="text-slate-400 text-sm">ابدأ بالبحث عن دوائك واحجزه</p>
           </motion.div>
         ) : (
-          orders?.map((order, i) => {
-            const status = STATUS_MAP[order.status] ?? {
-              label: order.status,
-              classes: "bg-slate-100 text-slate-600",
-            };
-            return (
-              <motion.div
-                key={order.id}
-                initial={{ opacity: 0, y: 16 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.08, duration: 0.4 }}
-                className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100"
-                data-testid={`card-order-${order.id}`}
-              >
-                <div className="flex items-start gap-3">
-                  <div className="w-12 h-12 flex-shrink-0 bg-gradient-to-br from-emerald-100 to-teal-200 rounded-xl flex items-center justify-center text-xl">
-                    💊
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-start justify-between gap-2">
-                      <p className="font-bold text-slate-800 text-sm leading-tight">
-                        {order.medication.name}
-                      </p>
-                      <span
-                        className={`flex-shrink-0 text-[10px] px-2 py-0.5 rounded-full font-semibold ${status.classes}`}
-                      >
-                        {status.label}
-                      </span>
-                    </div>
-                    <p className="text-slate-400 text-xs mt-0.5 truncate">
-                      {order.pharmacy.name}
-                    </p>
-                    <div className="flex items-center gap-3 mt-2">
-                      <span className="text-emerald-700 font-bold text-sm">
-                        {order.totalPrice.toFixed(2)} ر.س
-                      </span>
-                      <span className="text-slate-300">•</span>
-                      <span className="text-slate-400 text-xs">
-                        الكمية: {order.quantity}
-                      </span>
-                      <span className="text-slate-300">•</span>
-                      <span className="text-slate-400 text-xs">
-                        {formatDate(order.createdAt)}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </motion.div>
-            );
-          })
+          <>
+            {/* الطلبات النشطة */}
+            {active.length > 0 && (
+              <div className="space-y-3">
+                <p className="text-slate-500 text-xs font-semibold px-1">الطلبات الجارية</p>
+                {active.map((order, i) => {
+                  const status = STATUS_MAP[order.status] ?? { label: order.status, classes: "bg-slate-100 text-slate-600" };
+                  return (
+                    <motion.div
+                      key={order.id}
+                      initial={{ opacity: 0, y: 16 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: i * 0.08, type: "spring", damping: 22, stiffness: 280 }}
+                      className="bg-white/75 backdrop-blur-2xl rounded-2xl p-4
+                        border border-white/60
+                        shadow-[0_4px_20px_rgb(0,0,0,0.06)]"
+                      data-testid={`card-order-${order.id}`}
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className="w-12 h-12 flex-shrink-0 bg-gradient-to-br from-emerald-100 to-teal-200 rounded-xl flex items-center justify-center text-xl">💊</div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-start justify-between gap-2">
+                            <p className="font-bold text-slate-800 text-sm leading-tight">{order.medication.name}</p>
+                            <span className={`flex-shrink-0 text-[10px] px-2 py-0.5 rounded-full font-semibold ${status.classes}`}>{status.label}</span>
+                          </div>
+                          <p className="text-slate-400 text-xs mt-0.5 truncate">{order.pharmacy.name}</p>
+                          <div className="flex items-center gap-3 mt-1">
+                            <span className="text-emerald-700 font-bold text-sm">{order.totalPrice.toFixed(2)} ر.س</span>
+                            <span className="text-slate-300">•</span>
+                            <span className="text-slate-400 text-xs">{formatDate(order.createdAt)}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* شريط تتبع الطلب */}
+                      <OrderTracker status={order.status} />
+                    </motion.div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* السجل السابق */}
+            {completed.length > 0 && (
+              <div className="space-y-3">
+                <p className="text-slate-400 text-xs font-semibold px-1 pt-2">السابقة</p>
+                {completed.map((order, i) => {
+                  const status = STATUS_MAP[order.status] ?? { label: order.status, classes: "bg-slate-100 text-slate-600" };
+                  return (
+                    <motion.div
+                      key={order.id}
+                      initial={{ opacity: 0, y: 12 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: i * 0.06, type: "spring", damping: 25, stiffness: 280 }}
+                      className="bg-white/60 backdrop-blur-md rounded-2xl p-4 border border-white/50 opacity-70"
+                      data-testid={`card-order-past-${order.id}`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 flex-shrink-0 bg-slate-100 rounded-xl flex items-center justify-center text-lg">💊</div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="font-semibold text-slate-600 text-sm truncate">{order.medication.name}</p>
+                            <span className={`flex-shrink-0 text-[10px] px-2 py-0.5 rounded-full font-semibold ${status.classes}`}>{status.label}</span>
+                          </div>
+                          <p className="text-slate-400 text-xs mt-0.5">{order.pharmacy.name} · {formatDate(order.createdAt)}</p>
+                        </div>
+                      </div>
+                    </motion.div>
+                  );
+                })}
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>

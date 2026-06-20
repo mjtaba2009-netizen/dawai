@@ -1,188 +1,125 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, Pencil, Trash2, X, Package } from "lucide-react";
+import { Plus, Pencil, Trash2, X, Package, ShoppingBag, Check, Clock } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { AddMedicineForm } from "@/components/AddMedicineForm";
 
+// ────────────────────────────────────────────────────
+// Types
+// ────────────────────────────────────────────────────
 interface InventoryItem {
   id: number;
   medicationId: number;
   price: number;
   quantity: number;
   medication: {
-    id: number;
-    name: string;
-    genericName: string;
-    category: string;
-    requiresPrescription: boolean;
+    id: number; name: string; genericName: string;
+    category: string; requiresPrescription: boolean;
   };
 }
 
-interface AllMedication {
+interface PharmacyOrder {
   id: number;
-  name: string;
-  genericName: string;
-  category: string;
-  requiresPrescription: boolean;
+  status: string;
+  quantity: number;
+  totalPrice: number;
+  createdAt: string;
+  updatedAt: string;
+  medication: {
+    id: number; name: string; genericName: string; requiresPrescription: boolean;
+  };
 }
 
+// ────────────────────────────────────────────────────
+// API hook
+// ────────────────────────────────────────────────────
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
 function usePharmacyApi(token: string | undefined) {
-  const headers = {
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${token ?? ""}`,
-  };
+  const h = { "Content-Type": "application/json", Authorization: `Bearer ${token ?? ""}` };
 
   const get = async <T>(path: string): Promise<T> => {
-    const res = await fetch(`${BASE}${path}`, { headers });
-    if (!res.ok) throw new Error((await res.json())?.error ?? "خطأ في الخادم");
+    const res = await fetch(`${BASE}${path}`, { headers: h });
+    if (!res.ok) throw new Error((await res.json())?.error ?? "خطأ");
     return res.json();
   };
-
   const post = async <T>(path: string, body: object): Promise<T> => {
-    const res = await fetch(`${BASE}${path}`, { method: "POST", headers, body: JSON.stringify(body) });
-    if (!res.ok) throw new Error((await res.json())?.error ?? "خطأ في الخادم");
+    const res = await fetch(`${BASE}${path}`, { method: "POST", headers: h, body: JSON.stringify(body) });
+    if (!res.ok) throw new Error((await res.json())?.error ?? "خطأ");
     return res.json();
   };
-
   const put = async <T>(path: string, body: object): Promise<T> => {
-    const res = await fetch(`${BASE}${path}`, { method: "PUT", headers, body: JSON.stringify(body) });
-    if (!res.ok) throw new Error((await res.json())?.error ?? "خطأ في الخادم");
+    const res = await fetch(`${BASE}${path}`, { method: "PUT", headers: h, body: JSON.stringify(body) });
+    if (!res.ok) throw new Error((await res.json())?.error ?? "خطأ");
     return res.json();
   };
-
-  const del = async (path: string): Promise<void> => {
-    const res = await fetch(`${BASE}${path}`, { method: "DELETE", headers });
-    if (!res.ok && res.status !== 204) throw new Error((await res.json())?.error ?? "خطأ في الخادم");
+  const del = async (path: string) => {
+    const res = await fetch(`${BASE}${path}`, { method: "DELETE", headers: h });
+    if (!res.ok && res.status !== 204) throw new Error((await res.json())?.error ?? "خطأ");
   };
 
   return { get, post, put, del };
 }
 
-// نافذة إضافة / تعديل دواء
+// ────────────────────────────────────────────────────
+// Edit modal (existing inventory items)
+// ────────────────────────────────────────────────────
 function ItemFormModal({
-  item,
-  allMeds,
-  onSave,
-  onClose,
+  item, onSave, onClose,
 }: {
-  item: InventoryItem | null;
-  allMeds: AllMedication[];
-  onSave: (data: { medicationId?: number; price: number; quantity: number }) => Promise<void>;
+  item: InventoryItem;
+  onSave: (data: { price: number; quantity: number }) => Promise<void>;
   onClose: () => void;
 }) {
-  const [medicationId, setMedicationId] = useState(item?.medicationId ?? 0);
-  const [price, setPrice] = useState(item?.price.toString() ?? "");
-  const [quantity, setQuantity] = useState(item?.quantity.toString() ?? "");
-  const [saving, setSaving] = useState(false);
+  const [price, setPrice]     = useState(item.price.toString());
+  const [quantity, setQuantity] = useState(item.quantity.toString());
+  const [saving, setSaving]   = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
-    try {
-      await onSave({
-        ...(item ? {} : { medicationId }),
-        price: parseFloat(price),
-        quantity: parseInt(quantity, 10),
-      });
-      onClose();
-    } finally {
-      setSaving(false);
-    }
+    try { await onSave({ price: parseFloat(price), quantity: parseInt(quantity, 10) }); onClose(); }
+    finally { setSaving(false); }
   };
 
   return (
     <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 backdrop-blur-sm"
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 backdrop-blur-sm"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
       <motion.div
-        initial={{ y: "100%" }}
-        animate={{ y: 0 }}
-        exit={{ y: "100%" }}
-        transition={{ type: "spring", damping: 30, stiffness: 400 }}
-        className="w-full max-w-[430px] bg-white rounded-t-3xl p-5 pb-8"
+        initial={{ y: "100%", opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: "100%", opacity: 0 }}
+        transition={{ type: "spring", damping: 25, stiffness: 300, mass: 0.8 }}
+        className="w-full max-w-[430px] rounded-t-3xl p-5 pb-8
+          bg-white/80 backdrop-blur-2xl border-t border-white/60
+          shadow-[0_-12px_40px_rgb(0,0,0,0.10)]"
       >
         <div className="flex items-center justify-between mb-5">
-          <h3 className="text-slate-800 font-bold text-lg">
-            {item ? "تعديل الدواء" : "إضافة دواء جديد"}
-          </h3>
+          <h3 className="text-slate-800 font-bold text-lg">تعديل الدواء</h3>
           <button onClick={onClose} className="w-8 h-8 bg-slate-100 rounded-lg flex items-center justify-center">
             <X className="w-4 h-4 text-slate-500" />
           </button>
         </div>
-
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* اختيار الدواء — فقط عند الإضافة */}
-          {!item && (
-            <div>
-              <label className="text-sm font-semibold text-slate-600 mb-1.5 block">اسم الدواء</label>
-              <div className="relative">
-                <select
-                  value={medicationId}
-                  onChange={(e) => setMedicationId(Number(e.target.value))}
-                  required
-                  className="w-full h-12 pr-4 pl-8 rounded-xl border border-slate-200 bg-slate-50 text-slate-800 text-sm appearance-none outline-none focus:border-emerald-400"
-                  data-testid="select-medication"
-                >
-                  <option value={0} disabled>اختر الدواء...</option>
-                  {allMeds.map((m) => (
-                    <option key={m.id} value={m.id}>{m.name} ({m.genericName})</option>
-                  ))}
-                </select>
-                <ChevronDown className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-              </div>
-            </div>
-          )}
-
-          {/* السعر */}
           <div>
-            <label className="text-sm font-semibold text-slate-600 mb-1.5 block">السعر (ر.س)</label>
-            <input
-              type="number"
-              value={price}
-              onChange={(e) => setPrice(e.target.value)}
-              required
-              min="0.01"
-              step="0.01"
-              placeholder="0.00"
-              className="w-full h-12 px-4 rounded-xl border border-slate-200 bg-slate-50 text-slate-800 text-sm outline-none focus:border-emerald-400"
-              data-testid="input-price"
-            />
+            <label className="text-sm font-semibold text-slate-600 mb-1.5 block">السعر (IQD)</label>
+            <input type="number" value={price} onChange={(e) => setPrice(e.target.value)} required min="0.01" step="0.01"
+              className="w-full h-12 px-4 rounded-xl border border-white/60 bg-white/50 backdrop-blur-md text-slate-800 text-sm outline-none focus:border-emerald-400"
+              data-testid="input-price" />
           </div>
-
-          {/* الكمية */}
           <div>
             <label className="text-sm font-semibold text-slate-600 mb-1.5 block">الكمية المتاحة</label>
-            <input
-              type="number"
-              value={quantity}
-              onChange={(e) => setQuantity(e.target.value)}
-              required
-              min="0"
-              step="1"
-              placeholder="0"
-              className="w-full h-12 px-4 rounded-xl border border-slate-200 bg-slate-50 text-slate-800 text-sm outline-none focus:border-emerald-400"
-              data-testid="input-quantity"
-            />
+            <input type="number" value={quantity} onChange={(e) => setQuantity(e.target.value)} required min="0" step="1"
+              className="w-full h-12 px-4 rounded-xl border border-white/60 bg-white/50 backdrop-blur-md text-slate-800 text-sm outline-none focus:border-emerald-400"
+              data-testid="input-quantity" />
           </div>
-
           <div className="flex gap-3 pt-2">
-            <button type="button" onClick={onClose} className="flex-1 h-12 rounded-xl border border-slate-200 text-slate-600 font-semibold text-sm">
-              إلغاء
-            </button>
-            <motion.button
-              type="submit"
-              whileTap={{ scale: 0.97 }}
-              disabled={saving}
+            <button type="button" onClick={onClose} className="flex-1 h-12 rounded-xl border border-slate-200 text-slate-600 font-semibold text-sm">إلغاء</button>
+            <motion.button type="submit" whileTap={{ scale: 0.97 }} disabled={saving}
               className="flex-1 h-12 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-bold text-sm disabled:opacity-60"
-              data-testid="button-save-item"
-            >
+              data-testid="button-save-item">
               {saving ? "جاري الحفظ..." : "حفظ"}
             </motion.button>
           </div>
@@ -192,14 +129,361 @@ function ItemFormModal({
   );
 }
 
+// ────────────────────────────────────────────────────
+// Incoming order card with accept / reject / timeout
+// ────────────────────────────────────────────────────
+const TIMEOUT_SECS = 10;
+
+const ORDER_STATUS_STYLES: Record<string, string> = {
+  pending:   "bg-amber-50 text-amber-700",
+  confirmed: "bg-blue-50 text-blue-700",
+  ready:     "bg-emerald-50 text-emerald-700",
+  rejected:  "bg-red-50 text-red-500",
+  timeout:   "bg-orange-50 text-orange-600",
+};
+const ORDER_STATUS_LABELS: Record<string, string> = {
+  pending:   "قيد المراجعة",
+  confirmed: "تم التأكيد",
+  ready:     "جاهز للاستلام",
+  rejected:  "مرفوض",
+  timeout:   "انتهى الوقت",
+};
+
+function IncomingOrderCard({
+  order, onAccept, onReject,
+}: {
+  order: PharmacyOrder;
+  onAccept: (id: number) => Promise<void>;
+  onReject: (id: number) => Promise<void>;
+}) {
+  const [countdown, setCountdown] = useState(TIMEOUT_SECS);
+  const [actioning, setActioning] = useState<"accept" | "reject" | null>(null);
+  const [timedOut, setTimedOut]   = useState(false);
+
+  // تنازل عكسي — 10 ثواني للاستجابة
+  useEffect(() => {
+    if (order.status !== "pending") return;
+    const interval = setInterval(() => {
+      setCountdown((c) => {
+        if (c <= 1) { clearInterval(interval); setTimedOut(true); return 0; }
+        return c - 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [order.status]);
+
+  // عند انتهاء الوقت → أرسل timeout للـ API
+  useEffect(() => {
+    if (!timedOut || order.status !== "pending") return;
+    onReject(order.id); // يستخدم reject كـ timeout trigger داخلياً
+  }, [timedOut]);
+
+  const handleAccept = async () => {
+    setActioning("accept");
+    try { await onAccept(order.id); } finally { setActioning(null); }
+  };
+  const handleReject = async () => {
+    setActioning("reject");
+    try { await onReject(order.id); } finally { setActioning(null); }
+  };
+
+  const isPending  = order.status === "pending";
+  const isTimeout  = order.status === "timeout";
+  const statusStyle = ORDER_STATUS_STYLES[order.status] ?? "bg-slate-100 text-slate-600";
+  const statusLabel = ORDER_STATUS_LABELS[order.status] ?? order.status;
+
+  return (
+    <motion.div
+      layout
+      initial={{ opacity: 0, y: 20, scale: 0.97 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.95, transition: { duration: 0.18 } }}
+      transition={{ type: "spring", damping: 22, stiffness: 280 }}
+      className="rounded-2xl overflow-hidden
+        bg-white/75 backdrop-blur-2xl
+        border border-white/60
+        shadow-[0_4px_20px_rgb(0,0,0,0.06)]"
+    >
+      {/* معلومات الطلب */}
+      <div className="p-4">
+        <div className="flex items-start gap-3">
+          <div className="w-11 h-11 bg-gradient-to-br from-emerald-100 to-teal-200 rounded-xl flex items-center justify-center text-xl flex-shrink-0">💊</div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center justify-between gap-2 mb-0.5">
+              <p className="font-bold text-slate-800 text-sm truncate">{order.medication.name}</p>
+              <span className={`flex-shrink-0 text-[10px] px-2 py-0.5 rounded-full font-semibold ${statusStyle}`}>{statusLabel}</span>
+            </div>
+            <p className="text-slate-400 text-xs">{order.medication.genericName}</p>
+            <div className="flex items-center gap-3 mt-1.5">
+              <span className="text-emerald-700 font-bold text-sm">{order.totalPrice.toFixed(2)} ر.س</span>
+              <span className="text-slate-300">•</span>
+              <span className="text-slate-500 text-xs">الكمية: {order.quantity}</span>
+              {order.medication.requiresPrescription && (
+                <span className="text-[10px] px-1.5 py-0.5 bg-amber-50 text-amber-600 rounded-full font-medium">وصفة</span>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* شريط العد التنازلي — للطلبات المعلّقة */}
+        {isPending && (
+          <div className="mt-3">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-xs text-slate-500 font-medium flex items-center gap-1">
+                <Clock className="w-3 h-3" />
+                وقت الاستجابة المتبقي
+              </span>
+              <motion.span
+                key={countdown}
+                initial={{ scale: 1.3, color: "#ef4444" }}
+                animate={{ scale: 1, color: countdown <= 3 ? "#ef4444" : "#64748b" }}
+                transition={{ type: "spring", damping: 20 }}
+                className="text-xs font-bold tabular-nums"
+              >
+                {countdown}s
+              </motion.span>
+            </div>
+            <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+              <motion.div
+                className="h-full rounded-full bg-gradient-to-r from-emerald-400 to-teal-400"
+                initial={{ width: "100%" }}
+                animate={{ width: `${(countdown / TIMEOUT_SECS) * 100}%` }}
+                transition={{ duration: 1, ease: "linear" }}
+                style={{ backgroundColor: countdown <= 3 ? "#ef4444" : undefined }}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* بديل صيدلية عند انتهاء الوقت */}
+        {isTimeout && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            transition={{ type: "spring", damping: 22 }}
+            className="mt-3 p-3 rounded-xl bg-amber-50 border border-amber-100"
+          >
+            <p className="text-amber-700 text-xs font-semibold mb-1">🔄 تم توجيه الطلب لصيدلية قريبة أخرى</p>
+            <p className="text-amber-500 text-[11px]">صيدلية الحياة — على بعد 0.8 كم</p>
+            <div className="flex gap-1 mt-2">
+              {[0, 1, 2].map((i) => (
+                <motion.div key={i} className="flex-1 h-1 rounded-full bg-amber-300"
+                  animate={{ opacity: [0.3, 1, 0.3] }}
+                  transition={{ duration: 1.2, repeat: Infinity, delay: i * 0.2 }} />
+              ))}
+            </div>
+          </motion.div>
+        )}
+      </div>
+
+      {/* أزرار الإجراء — فقط للطلبات المعلّقة */}
+      <AnimatePresence>
+        {isPending && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            className="border-t border-white/60 grid grid-cols-2"
+          >
+            {/* رفض */}
+            <motion.button
+              whileTap={{ scale: 0.96 }}
+              transition={{ type: "spring", damping: 20, stiffness: 400 }}
+              onClick={handleReject}
+              disabled={!!actioning}
+              className="py-3 flex items-center justify-center gap-1.5
+                text-red-500 font-semibold text-sm
+                border-l border-white/60
+                hover:bg-red-50/60 transition-colors disabled:opacity-50"
+              data-testid={`button-reject-${order.id}`}
+            >
+              <X className="w-4 h-4" />
+              {actioning === "reject" ? "جاري..." : "رفض / غير متوفر"}
+            </motion.button>
+
+            {/* قبول */}
+            <motion.button
+              whileTap={{ scale: 0.96 }}
+              transition={{ type: "spring", damping: 20, stiffness: 400 }}
+              onClick={handleAccept}
+              disabled={!!actioning}
+              className="py-3 flex items-center justify-center gap-1.5
+                text-emerald-600 font-bold text-sm
+                hover:bg-emerald-50/60 transition-colors disabled:opacity-50"
+              data-testid={`button-accept-${order.id}`}
+            >
+              <Check className="w-4 h-4" />
+              {actioning === "accept" ? "جاري..." : "قبول وتجهيز"}
+            </motion.button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
+  );
+}
+
+// ────────────────────────────────────────────────────
+// Pharmacy Orders Tab
+// ────────────────────────────────────────────────────
+function PharmacyOrdersTab({ api, token }: { api: ReturnType<typeof usePharmacyApi>; token: string }) {
+  const { toast } = useToast();
+  const [orders, setOrders]         = useState<PharmacyOrder[]>([]);
+  const [isLoading, setIsLoading]   = useState(true);
+  const handledRef                  = useRef<Set<number>>(new Set());
+
+  const fetchOrders = useCallback(async () => {
+    try {
+      const data = await api.get<PharmacyOrder[]>("/api/pharmacy/orders");
+      setOrders(data);
+    } catch { /* silent */ }
+    finally { setIsLoading(false); }
+  }, []);
+
+  // Polling every 5s
+  useEffect(() => {
+    fetchOrders();
+    const id = setInterval(fetchOrders, 5000);
+    return () => clearInterval(id);
+  }, []);
+
+  // Auto-timeout simulation: 10s per new pending order (frontend only)
+  useEffect(() => {
+    const pending = orders.filter((o) => o.status === "pending" && !handledRef.current.has(o.id));
+    const timers: ReturnType<typeof setTimeout>[] = [];
+
+    pending.forEach((order) => {
+      handledRef.current.add(order.id);
+      const t = setTimeout(async () => {
+        // التحقق إذا لا يزال معلّقاً قبل إرسال timeout
+        const fresh = await api.get<PharmacyOrder[]>("/api/pharmacy/orders");
+        const still = fresh.find((o) => o.id === order.id && o.status === "pending");
+        if (!still) return;
+
+        await api.put(`/api/pharmacy/orders/${order.id}/status`, { status: "timeout" });
+        setOrders((prev) => prev.map((o) => o.id === order.id ? { ...o, status: "timeout" } : o));
+        toast({
+          title: "⏱ انتهت مهلة الاستجابة",
+          description: `طلب ${order.medication.name} — تم توجيهه لصيدلية بديلة`,
+          variant: "destructive",
+        });
+      }, TIMEOUT_SECS * 1000);
+
+      timers.push(t);
+    });
+
+    return () => timers.forEach(clearTimeout);
+  }, [orders.filter((o) => o.status === "pending").map((o) => o.id).join(",")]);
+
+  const handleAccept = async (id: number) => {
+    await api.put(`/api/pharmacy/orders/${id}/status`, { status: "confirmed" });
+
+    // TODO: Connect to n8n Webhook to trigger automated WhatsApp notification to the patient
+    // await fetch(process.env.N8N_WEBHOOK_URL, { method: "POST", body: JSON.stringify({ orderId: id, status: "confirmed" }) })
+
+    setOrders((prev) => prev.map((o) => o.id === id ? { ...o, status: "confirmed" } : o));
+    toast({ title: "✅ تم قبول الطلب", description: "يتم الآن تجهيز الدواء للمريض" });
+  };
+
+  const handleReject = async (id: number) => {
+    // يُستخدم أيضاً عند timeout من الـ effect أعلاه
+    const order = orders.find((o) => o.id === id);
+    const isTimeout = (order?.status === "pending");
+    const newStatus = isTimeout ? "rejected" : "rejected";
+
+    await api.put(`/api/pharmacy/orders/${id}/status`, { status: newStatus });
+    setOrders((prev) => prev.map((o) => o.id === id ? { ...o, status: newStatus } : o));
+
+    if (!isTimeout) toast({ title: "تم رفض الطلب", description: "تم إشعار المريض بعدم توفر الدواء" });
+  };
+
+  const pending   = orders.filter((o) => o.status === "pending");
+  const active    = orders.filter((o) => o.status === "confirmed" || o.status === "ready");
+  const archived  = orders.filter((o) => ["rejected", "timeout", "completed", "cancelled"].includes(o.status));
+
+  if (isLoading) {
+    return (
+      <div className="px-4 pt-4 space-y-3">
+        {[0, 1, 2].map((i) => (
+          <div key={i} className="animate-pulse bg-white/70 rounded-2xl h-24 border border-white/60" />
+        ))}
+      </div>
+    );
+  }
+
+  if (orders.length === 0) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="flex flex-col items-center justify-center py-20 text-center px-4"
+      >
+        <div className="w-16 h-16 bg-emerald-50 rounded-full flex items-center justify-center mb-3">
+          <ShoppingBag className="w-8 h-8 text-emerald-300" />
+        </div>
+        <h3 className="text-slate-700 font-bold mb-1">لا توجد طلبات واردة</h3>
+        <p className="text-slate-400 text-sm">ستظهر هنا طلبات المرضى عند ورودها</p>
+      </motion.div>
+    );
+  }
+
+  return (
+    <div className="px-4 pt-4 pb-6 space-y-4 overflow-y-auto">
+      {pending.length > 0 && (
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <p className="text-slate-600 text-xs font-semibold">تنتظر ردّك</p>
+            <motion.span
+              animate={{ scale: [1, 1.2, 1] }}
+              transition={{ duration: 1.5, repeat: Infinity }}
+              className="w-5 h-5 rounded-full bg-amber-100 text-amber-600 text-[10px] font-bold flex items-center justify-center"
+            >
+              {pending.length}
+            </motion.span>
+          </div>
+          <AnimatePresence>
+            {pending.map((o) => (
+              <IncomingOrderCard key={o.id} order={o} onAccept={handleAccept} onReject={handleReject} />
+            ))}
+          </AnimatePresence>
+        </div>
+      )}
+
+      {active.length > 0 && (
+        <div className="space-y-3">
+          <p className="text-slate-500 text-xs font-semibold">جارية التجهيز</p>
+          <AnimatePresence>
+            {active.map((o) => (
+              <IncomingOrderCard key={o.id} order={o} onAccept={handleAccept} onReject={handleReject} />
+            ))}
+          </AnimatePresence>
+        </div>
+      )}
+
+      {archived.length > 0 && (
+        <div className="space-y-3">
+          <p className="text-slate-400 text-xs font-semibold">السابقة</p>
+          <AnimatePresence>
+            {archived.map((o) => (
+              <IncomingOrderCard key={o.id} order={o} onAccept={handleAccept} onReject={handleReject} />
+            ))}
+          </AnimatePresence>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ────────────────────────────────────────────────────
+// Main Dashboard
+// ────────────────────────────────────────────────────
 export function PharmacyDashboard() {
   const { user } = useAuth();
   const { toast } = useToast();
   const api = usePharmacyApi(user?.token);
 
-  const [inventory, setInventory] = useState<InventoryItem[]>([]);
-  const [allMeds, setAllMeds] = useState<AllMedication[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [activeTab, setActiveTab]   = useState<"inventory" | "orders">("orders");
+  const [inventory, setInventory]   = useState<InventoryItem[]>([]);
+  const [isLoading, setIsLoading]   = useState(true);
   const [editingItem, setEditingItem] = useState<InventoryItem | null | "new">(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
 
@@ -207,32 +491,15 @@ export function PharmacyDashboard() {
     try {
       const data = await api.get<InventoryItem[]>("/api/pharmacy/inventory");
       setInventory(data);
-    } catch (err) {
-      toast({ title: "خطأ في تحميل المخزون", variant: "destructive" });
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
-  const fetchAllMeds = useCallback(async () => {
-    try {
-      const data = await api.get<AllMedication[]>("/api/medications/popular?limit=100");
-      setAllMeds(data);
     } catch {
-      // Ignore
-    }
+      toast({ title: "خطأ في تحميل المخزون", variant: "destructive" });
+    } finally { setIsLoading(false); }
   }, []);
 
-  useEffect(() => {
-    fetchInventory();
-    fetchAllMeds();
-  }, []);
+  useEffect(() => { fetchInventory(); }, []);
 
   const handleAddCustom = async (data: {
-    medicationName: string;
-    price: number;
-    quantity: number;
-    requiresPrescription: boolean;
+    medicationName: string; price: number; quantity: number; requiresPrescription: boolean;
   }) => {
     try {
       await api.post("/api/pharmacy/inventory/add-custom", data);
@@ -263,125 +530,148 @@ export function PharmacyDashboard() {
       toast({ title: "تم حذف الدواء من المخزون" });
     } catch (err) {
       toast({ title: "خطأ في الحذف", description: String(err), variant: "destructive" });
-    } finally {
-      setDeletingId(null);
-    }
+    } finally { setDeletingId(null); }
   };
 
   const pharmacyName = user?.name ?? "الصيدلية";
+  const TABS = [
+    { key: "orders",    label: "الطلبات الواردة", icon: ShoppingBag },
+    { key: "inventory", label: "المخزون",          icon: Package     },
+  ] as const;
 
   return (
     <div className="flex-1 flex flex-col bg-muted/20">
       {/* الرأس */}
-      <div className="bg-gradient-to-br from-emerald-500 to-teal-600 px-5 pt-10 pb-6">
-        <div className="flex items-start justify-between">
+      <div className="bg-gradient-to-br from-emerald-500 to-teal-600 px-5 pt-6 pb-5">
+        <div className="flex items-center justify-between mb-4">
           <div>
-            <p className="text-emerald-100 text-xs mb-1">لوحة التحكم</p>
+            <p className="text-emerald-100 text-xs mb-0.5">لوحة التحكم</p>
             <h1 className="text-white text-xl font-bold">{pharmacyName}</h1>
-            <p className="text-emerald-100 text-sm mt-1">
-              {inventory.length} دواء في المخزون
-            </p>
           </div>
-          <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center text-2xl">
-            🏪
-          </div>
+          <div className="w-12 h-12 bg-white/20 backdrop-blur-sm rounded-2xl border border-white/30 flex items-center justify-center text-2xl">🏪</div>
+        </div>
+
+        {/* التبويبات */}
+        <div className="flex p-1 bg-black/15 backdrop-blur-sm rounded-2xl gap-1">
+          {TABS.map(({ key, label, icon: Icon }) => (
+            <button
+              key={key}
+              onClick={() => setActiveTab(key)}
+              className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-sm font-semibold transition-all ${
+                activeTab === key
+                  ? "bg-white text-emerald-700 shadow-md"
+                  : "text-emerald-100 hover:text-white"
+              }`}
+            >
+              <Icon className="w-3.5 h-3.5" />
+              {label}
+            </button>
+          ))}
         </div>
       </div>
 
-      {/* زر إضافة */}
-      <div className="px-4 pt-4">
-        <motion.button
-          whileTap={{ scale: 0.97 }}
-          whileHover={{ scale: 1.01 }}
-          onClick={() => setEditingItem("new")}
-          className="w-full h-12 flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-bold shadow-md shadow-emerald-500/20"
-          data-testid="button-add-medication"
-        >
-          <Plus className="w-5 h-5" />
-          إضافة دواء جديد
-        </motion.button>
-      </div>
-
-      {/* قائمة المخزون */}
-      <div className="flex-1 px-4 pt-4 pb-6 space-y-3 overflow-y-auto">
-        {isLoading ? (
-          Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="animate-pulse bg-white rounded-2xl h-20 border border-slate-100" />
-          ))
-        ) : inventory.length === 0 ? (
+      {/* محتوى التبويب */}
+      <AnimatePresence mode="wait">
+        {activeTab === "orders" ? (
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="flex flex-col items-center justify-center py-16 text-center"
+            key="orders"
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 20 }}
+            transition={{ type: "spring", damping: 22, stiffness: 280 }}
+            className="flex-1 overflow-y-auto"
           >
-            <div className="w-16 h-16 bg-emerald-50 rounded-full flex items-center justify-center mb-3">
-              <Package className="w-8 h-8 text-emerald-300" />
-            </div>
-            <h3 className="text-slate-700 font-bold mb-1">المخزون فارغ</h3>
-            <p className="text-slate-400 text-sm">ابدأ بإضافة أدوية لمخزون صيدليتك</p>
+            <PharmacyOrdersTab api={api} token={user?.token ?? ""} />
           </motion.div>
         ) : (
-          inventory.map((item, i) => (
-            <motion.div
-              key={item.id}
-              initial={{ opacity: 0, y: 14 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.06 }}
-              className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm"
-              data-testid={`card-inventory-${item.id}`}
-            >
-              <div className="flex items-start gap-3">
-                <div className="w-11 h-11 flex-shrink-0 bg-gradient-to-br from-emerald-50 to-teal-100 rounded-xl flex items-center justify-center text-xl">
-                  💊
-                </div>
+          <motion.div
+            key="inventory"
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            transition={{ type: "spring", damping: 22, stiffness: 280 }}
+            className="flex-1 flex flex-col"
+          >
+            {/* زر إضافة */}
+            <div className="px-4 pt-4">
+              <motion.button
+                whileTap={{ scale: 0.97 }} whileHover={{ scale: 1.01 }}
+                onClick={() => setEditingItem("new")}
+                className="w-full h-12 flex items-center justify-center gap-2 rounded-2xl
+                  bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-bold
+                  shadow-[0_4px_16px_rgba(16,185,129,0.3)]"
+                data-testid="button-add-medication"
+              >
+                <Plus className="w-5 h-5" /> إضافة دواء جديد
+              </motion.button>
+            </div>
 
-                <div className="flex-1 min-w-0">
-                  <p className="font-bold text-slate-800 text-sm truncate">{item.medication.name}</p>
-                  <p className="text-slate-400 text-xs truncate">{item.medication.genericName}</p>
-                  <div className="flex items-center gap-3 mt-2">
-                    <span className="text-emerald-700 font-bold text-sm">{item.price.toFixed(2)} ر.س</span>
-                    <span className="text-slate-400 text-xs">الكمية: {item.quantity}</span>
-                    {item.quantity === 0 && (
-                      <span className="text-[10px] px-2 py-0.5 bg-red-50 text-red-500 rounded-full font-medium">
-                        نفد
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                {/* أزرار التعديل والحذف */}
-                <div className="flex gap-2 flex-shrink-0">
-                  <motion.button
-                    whileTap={{ scale: 0.9 }}
-                    onClick={() => setEditingItem(item)}
-                    className="w-8 h-8 bg-blue-50 rounded-xl flex items-center justify-center"
-                    data-testid={`button-edit-${item.id}`}
+            {/* قائمة المخزون */}
+            <div className="flex-1 px-4 pt-4 pb-6 space-y-3 overflow-y-auto">
+              {isLoading
+                ? Array.from({ length: 4 }).map((_, i) => (
+                    <div key={i} className="animate-pulse bg-white/70 rounded-2xl h-20 border border-white/60" />
+                  ))
+                : inventory.length === 0
+                ? (
+                  <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
+                    className="flex flex-col items-center justify-center py-16 text-center">
+                    <div className="w-16 h-16 bg-emerald-50 rounded-full flex items-center justify-center mb-3">
+                      <Package className="w-8 h-8 text-emerald-300" />
+                    </div>
+                    <h3 className="text-slate-700 font-bold mb-1">المخزون فارغ</h3>
+                    <p className="text-slate-400 text-sm">ابدأ بإضافة أدوية لمخزون صيدليتك</p>
+                  </motion.div>
+                )
+                : inventory.map((item, i) => (
+                  <motion.div
+                    key={item.id}
+                    initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: i * 0.06, type: "spring", damping: 22 }}
+                    className="rounded-2xl p-4
+                      bg-white/75 backdrop-blur-2xl
+                      border border-white/60
+                      shadow-[0_4px_16px_rgb(0,0,0,0.05)]"
+                    data-testid={`card-inventory-${item.id}`}
                   >
-                    <Pencil className="w-3.5 h-3.5 text-blue-600" />
-                  </motion.button>
-                  <motion.button
-                    whileTap={{ scale: 0.9 }}
-                    onClick={() => handleDelete(item.id)}
-                    disabled={deletingId === item.id}
-                    className="w-8 h-8 bg-red-50 rounded-xl flex items-center justify-center disabled:opacity-50"
-                    data-testid={`button-delete-${item.id}`}
-                  >
-                    <Trash2 className="w-3.5 h-3.5 text-red-500" />
-                  </motion.button>
-                </div>
-              </div>
-            </motion.div>
-          ))
+                    <div className="flex items-start gap-3">
+                      <div className="w-11 h-11 flex-shrink-0 bg-gradient-to-br from-emerald-50 to-teal-100 rounded-xl flex items-center justify-center text-xl">💊</div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-bold text-slate-800 text-sm truncate">{item.medication.name}</p>
+                        <p className="text-slate-400 text-xs truncate">{item.medication.genericName}</p>
+                        <div className="flex items-center gap-3 mt-2">
+                          <span className="text-emerald-700 font-bold text-sm">{item.price.toFixed(2)} ر.س</span>
+                          <span className="text-slate-400 text-xs">الكمية: {item.quantity}</span>
+                          {item.quantity === 0 && (
+                            <span className="text-[10px] px-2 py-0.5 bg-red-50 text-red-500 rounded-full font-medium">نفد</span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex gap-2 flex-shrink-0">
+                        <motion.button whileTap={{ scale: 0.9 }} onClick={() => setEditingItem(item)}
+                          className="w-8 h-8 bg-blue-50 rounded-xl flex items-center justify-center"
+                          data-testid={`button-edit-${item.id}`}>
+                          <Pencil className="w-3.5 h-3.5 text-blue-600" />
+                        </motion.button>
+                        <motion.button whileTap={{ scale: 0.9 }} onClick={() => handleDelete(item.id)}
+                          disabled={deletingId === item.id}
+                          className="w-8 h-8 bg-red-50 rounded-xl flex items-center justify-center disabled:opacity-50"
+                          data-testid={`button-delete-${item.id}`}>
+                          <Trash2 className="w-3.5 h-3.5 text-red-500" />
+                        </motion.button>
+                      </div>
+                    </div>
+                  </motion.div>
+                ))}
+            </div>
+          </motion.div>
         )}
-      </div>
+      </AnimatePresence>
 
       {/* نموذج إضافة دواء جديد */}
       <AnimatePresence>
         {editingItem === "new" && (
-          <AddMedicineForm
-            onAdd={handleAddCustom}
-            onClose={() => setEditingItem(null)}
-          />
+          <AddMedicineForm onAdd={handleAddCustom} onClose={() => setEditingItem(null)} />
         )}
       </AnimatePresence>
 
