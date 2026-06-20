@@ -1,11 +1,8 @@
-import { useState, useContext, useEffect } from 'react';
+import { useState, useContext, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { Search, Camera, MapPin, ChevronLeft, Pill, Store, ShoppingCart } from 'lucide-react';
-import {
-  useGetPopularMedications,
-  useGetNearbyPharmacies,
-} from '@workspace/api-client-react';
+import { Search, Camera, MapPin, ChevronLeft, Pill, Store, ShoppingCart, X, Upload } from 'lucide-react';
+import { useGetNearbyPharmacies } from '@workspace/api-client-react';
 import { AuthContext } from '@/contexts/AuthContext';
 import { PrescriptionModal } from '@/components/PrescriptionModal';
 import { useToast } from '@/hooks/use-toast';
@@ -148,6 +145,98 @@ function PharmacyCard({
   );
 }
 
+// ── نافذة البحث البصري (كاميرا / معرض) ───────────────────────
+function VisualSearchModal({
+  onClose, onPick,
+}: { onClose: () => void; onPick: (file: File) => void }) {
+  const camRef = useRef<HTMLInputElement>(null);
+  const galRef = useRef<HTMLInputElement>(null);
+
+  // إغلاق بزر Escape
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  return (
+    <motion.div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      data-testid="visual-search-modal"
+    >
+      {/* الخلفية الداكنة */}
+      <motion.div
+        className="absolute inset-0 bg-slate-900/60 backdrop-blur-md"
+        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+        onClick={onClose}
+      />
+
+      {/* البطاقة */}
+      <motion.div
+        className="relative z-10 w-full max-w-sm bg-white rounded-3xl shadow-2xl p-6"
+        dir="rtl"
+        role="dialog"
+        aria-modal="true"
+        aria-label="البحث البصري"
+        initial={{ y: 40, scale: 0.94, opacity: 0 }}
+        animate={{ y: 0, scale: 1, opacity: 1 }}
+        exit={{ y: 40, scale: 0.94, opacity: 0 }}
+        transition={{ type: 'spring', stiffness: 300, damping: 28 }}
+      >
+        <button
+          onClick={onClose}
+          className="absolute top-4 left-4 w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 transition-colors"
+          data-testid="button-close-visual-search"
+          aria-label="إغلاق"
+        >
+          <X className="w-4 h-4" />
+        </button>
+
+        <div className="flex justify-center mb-4 mt-2">
+          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-400 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-500/30">
+            <Camera className="w-8 h-8 text-white" />
+          </div>
+        </div>
+
+        <h3 className="text-center text-lg font-bold text-slate-800 mb-1">البحث البصري</h3>
+        <p className="text-center text-sm text-slate-500 mb-6 leading-relaxed">
+          التقط صورة للدواء أو العبوة للعثور على أدوية مشابهة في الصيدليات القريبة
+        </p>
+
+        {/* مدخلات مخفية */}
+        <input
+          ref={camRef} type="file" accept="image/*" capture="environment" className="hidden"
+          onChange={e => { const f = e.target.files?.[0]; if (f) onPick(f); }}
+        />
+        <input
+          ref={galRef} type="file" accept="image/*" className="hidden"
+          onChange={e => { const f = e.target.files?.[0]; if (f) onPick(f); }}
+        />
+
+        <div className="space-y-2.5">
+          <motion.button
+            whileTap={{ scale: 0.98 }}
+            onClick={() => camRef.current?.click()}
+            className="w-full h-12 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/25"
+            data-testid="button-capture-photo"
+          >
+            <Camera className="w-4 h-4" /> التقاط صورة
+          </motion.button>
+          <motion.button
+            whileTap={{ scale: 0.98 }}
+            onClick={() => galRef.current?.click()}
+            className="w-full h-12 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm flex items-center justify-center gap-2 transition-colors"
+            data-testid="button-upload-photo"
+          >
+            <Upload className="w-4 h-4" /> رفع من المعرض
+          </motion.button>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
 // ═══════════════════════════════════════════════════════════════
 export function Home() {
   const [searchQuery,      setSearchQuery]      = useState('');
@@ -155,12 +244,19 @@ export function Home() {
   const [locLoading,       setLocLoading]       = useState(true);
   // الدواء الذي فعَّل نافذة الوصفة (null = مغلق)
   const [prescriptionMed,  setPrescriptionMed]  = useState<string | null>(null);
+  // نافذة البحث البصري
+  const [showVisualSearch, setShowVisualSearch] = useState(false);
 
   const navigate = useNavigate();
   const auth     = useContext(AuthContext);
   const { toast } = useToast();
 
-  const { data: popularMeds,      isLoading: loadingMeds }       = useGetPopularMedications();
+  // الأدوية الشائعة — قائمة فارغة (لا بيانات تجريبية) → تظهر الحالة الفارغة حتى تُضاف أدوية حقيقية
+  const popularMeds: Array<{
+    id: number; name: string; genericName: string; category: string; requiresPrescription?: boolean;
+  }> = [];
+  const loadingMeds = false;
+
   const { data: nearbyPharmacies, isLoading: loadingPharmacies } = useGetNearbyPharmacies();
 
   // ── كشف الموقع الجغرافي ──────────────────────────────────────
@@ -183,11 +279,14 @@ export function Home() {
       navigate(`/search?q=${encodeURIComponent(searchQuery.trim())}`);
   };
 
-  // ── البحث البصري (كاميرا شريط البحث) ──────────────────────────
-  const handleVisualSearch = () => {
+  // ── البحث البصري (كاميرا شريط البحث) → فتح النافذة المنبثقة ──
+  const handleVisualSearch = () => setShowVisualSearch(true);
+
+  const handleVisualPick = (file: File) => {
+    setShowVisualSearch(false);
     toast({
-      title: '📷 البحث البصري',
-      description: 'التقط صورة للمنتج للعثور على أدوية مشابهة',
+      title: '📷 تم اختيار الصورة',
+      description: `${file.name} — جاري البحث عن أدوية مشابهة...`,
       duration: 3000,
     });
   };
@@ -390,6 +489,16 @@ export function Home() {
             medicationName={prescriptionMed}
             onConfirm={() => setPrescriptionMed(null)}
             onClose={() => setPrescriptionMed(null)}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* ── نافذة البحث البصري — كاميرا/معرض ── */}
+      <AnimatePresence>
+        {showVisualSearch && (
+          <VisualSearchModal
+            onClose={() => setShowVisualSearch(false)}
+            onPick={handleVisualPick}
           />
         )}
       </AnimatePresence>

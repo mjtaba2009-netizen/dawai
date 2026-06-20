@@ -1,0 +1,30 @@
+@Agent (Power Mode Enabled):
+I need to completely redesign the `SplashIntro.jsx` component to an Ultra-Premium, Apple-tier cinematic splash screen. Delete the previous 3D pill concept. We are moving to a "Minimalist Glowing Aura & Fluid Path" concept using Tailwind CSS and Framer Motion.
+
+### Cinematic UX/UI Requirements:
+
+1. The Background (Pitch Black to Ambient Aura):
+- Start with a strict pitch-black background (`bg-black`).
+- After 1.5 seconds, trigger a massive, highly blurred, soft Emerald glowing aura (`blur-[100px]`, `opacity-40`) that gently pulses in the center of the screen, creating a deep ambient studio effect.
+
+2. The Hero Animation (The Heartbeat to Glow):
+- Step 1: Draw a sleek, ultra-thin glowing line (using an SVG `<path>` and Framer Motion's `pathLength` from 0 to 1). The path should resemble a minimal, elegant heartbeat (EKG wave).
+- Step 2: Once the line finishes drawing (duration: 1.2s), it swiftly scales down into a single glowing dot in the center.
+- Step 3: The dot "bursts" softly (scale 0 to 10) into the ambient background aura mentioned above.
+
+3. Premium Typography Reveal:
+- As the aura illuminates, the word "دوائي" reveals itself. 
+- Font styling: Use the "Cairo" font, absolutely massive (`text-7xl` or `text-8xl`), purely white (`text-white`), with a slight elegant tracking (`tracking-tight`). 
+- Entrance animation: A slow, majestic fade-in with a slight upward drift (`y: 20` to `y: 0` with `ease: "easeOut"` duration: 1.5s).
+- Subtitle: Underneath, fade in "THE DIGITAL PHARMACY" with high letter-spacing (`tracking-[0.3em]`), tiny font (`text-xs`), in a sleek slate color (`text-slate-400`).
+
+4. Developer Signature:
+- At the absolute bottom of the screen, fade in "Powered by Promptify IQ" in a dark, barely visible slate tone (`text-slate-600`, `text-[10px]`) for a subtle luxury tech footprint.
+
+5. The Exit Transition (The Glass Wipe):
+- Instead of just fading out, the entire splash screen should smoothly zoom IN (`scale: 1.1`), while the background violently blurs (`backdrop-blur-3xl`) and fades to `opacity: 0` over 1 second, revealing the app interface underneath perfectly smoothly.
+
+Technical Constraints:
+- Total intro duration MUST be max 3.5 seconds before it unmounts.
+- Strictly NO "Athena" text or logos anywhere in the app.
+- Ensure the `<AnimatePresence>` is perfectly configured in `App.jsx` to allow this unmount animation to play out.

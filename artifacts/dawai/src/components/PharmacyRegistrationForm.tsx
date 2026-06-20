@@ -420,10 +420,30 @@ function FileDropzone({
 // ═══════════════════════════════════════════════════════════════
 // Main Form Component
 // ═══════════════════════════════════════════════════════════════
-export function PharmacyRegistrationForm() {
+interface PharmacyRegistrationFormProps {
+  /** عند التضمين داخل صفحة الدخول: لا header كامل، يظهر حقول الحساب وزر إنشاء مدمج */
+  embedded?: boolean;
+  phone?: string;
+  password?: string;
+  onPhoneChange?: (v: string) => void;
+  onPasswordChange?: (v: string) => void;
+  /** يُستدعى عند الإرسال في وضع التضمين مع بيانات العرض */
+  onRegister?: (data: { fullName: string; pharmacyName: string }) => void;
+  isLoading?: boolean;
+}
+
+export function PharmacyRegistrationForm({
+  embedded = false,
+  phone = "",
+  password = "",
+  onPhoneChange,
+  onPasswordChange,
+  onRegister,
+  isLoading = false,
+}: PharmacyRegistrationFormProps = {}) {
   const [form, setForm] = useState<FormData>({
     fullName: "", pharmacyName: "", workingHours: "", address: "",
-    governorate: "", hasCode: false, registrationCode: "", certificateFile: null,
+    governorate: "البصرة", hasCode: false, registrationCode: "", certificateFile: null,
   });
   const [showGps,      setShowGps]      = useState(false);
   const [submitted,    setSubmitted]    = useState(false);
@@ -441,23 +461,27 @@ export function PharmacyRegistrationForm() {
   const set = (key: keyof FormData, value: unknown) =>
     setForm((f) => ({ ...f, [key]: value }));
 
-  // Geolocation — يُشغَّل عند تحميل الصفحة
+  // Geolocation — يُشغَّل عند تحميل الصفحة. يُبقي "البصرة" كافتراضي ما لم تُكتشف محافظة عراقية فعلية.
   useEffect(() => {
     if (!navigator.geolocation) return;
     setGovLoading(true);
     navigator.geolocation.getCurrentPosition(
       ({ coords }) => {
         const gov = detectGovernorate(coords.latitude, coords.longitude);
-        setForm(f => ({ ...f, governorate: gov }));
+        if (gov) setForm(f => ({ ...f, governorate: gov }));
         setGovLoading(false);
       },
-      () => { setForm(f => ({ ...f, governorate: "" })); setGovLoading(false); },
+      () => { setGovLoading(false); },
       { timeout: 8000, maximumAge: 60000 }
     );
   }, []);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (embedded) {
+      onRegister?.({ fullName: form.fullName, pharmacyName: form.pharmacyName });
+      return;
+    }
     setSubmitted(true);
     setTimeout(() => setSubmitted(false), 3000);
   };
@@ -469,29 +493,39 @@ export function PharmacyRegistrationForm() {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100/50" dir="rtl">
+    <div
+      className={embedded ? "" : "min-h-screen bg-gradient-to-b from-slate-50 to-slate-100/50"}
+      dir="rtl"
+      data-testid="pharmacy-registration-form"
+    >
 
-      {/* Header */}
-      <div
-        className="sticky top-0 z-30 px-4 pt-safe-top pb-4 pt-4"
-        style={{ background: "rgba(255,255,255,0.85)", backdropFilter: "blur(16px)", borderBottom: "1px solid rgba(0,0,0,0.06)" }}
-      >
-        <div className="max-w-lg mx-auto flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-400 to-teal-600 flex items-center justify-center shadow-md">
-            <svg viewBox="0 0 24 24" className="w-5 h-5 text-white" fill="none" stroke="currentColor" strokeWidth="2.2">
-              <path d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0H5m14 0h2M5 21H3" />
-              <path d="M9 7h6M9 11h6M9 15h4" />
-            </svg>
-          </div>
-          <div>
-            <h1 className="text-base font-bold text-slate-800">تسجيل صيدلية جديدة</h1>
-            <p className="text-xs text-slate-400">أدخل بيانات صيدليتك بدقة</p>
+      {/* Header — صفحة مستقلة فقط */}
+      {!embedded && (
+        <div
+          className="sticky top-0 z-30 px-4 pt-safe-top pb-4 pt-4"
+          style={{ background: "rgba(255,255,255,0.85)", backdropFilter: "blur(16px)", borderBottom: "1px solid rgba(0,0,0,0.06)" }}
+        >
+          <div className="max-w-lg mx-auto flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-400 to-teal-600 flex items-center justify-center shadow-md">
+              <svg viewBox="0 0 24 24" className="w-5 h-5 text-white" fill="none" stroke="currentColor" strokeWidth="2.2">
+                <path d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0H5m14 0h2M5 21H3" />
+                <path d="M9 7h6M9 11h6M9 15h4" />
+              </svg>
+            </div>
+            <div>
+              <h1 className="text-base font-bold text-slate-800">تسجيل صيدلية جديدة</h1>
+              <p className="text-xs text-slate-400">أدخل بيانات صيدليتك بدقة</p>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Form Body */}
-      <form onSubmit={handleSubmit} className="max-w-lg mx-auto px-4 py-5 space-y-4 pb-32">
+      <form
+        id="pharmacy-form"
+        onSubmit={handleSubmit}
+        className={embedded ? "space-y-4" : "max-w-lg mx-auto px-4 py-5 space-y-4 pb-32"}
+      >
 
         {/* ── القسم الأول: البيانات الشخصية ── */}
         <motion.div
@@ -594,6 +628,35 @@ export function PharmacyRegistrationForm() {
           </Card>
         </motion.div>
 
+        {/* ── بيانات الحساب — وضع التضمين فقط ── */}
+        {embedded && (
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.12 }}
+          >
+            <Card>
+              <SectionHeader title="بيانات الحساب" subtitle="للدخول إلى حسابك لاحقاً" />
+              <div className="space-y-3">
+                <Field label="رقم الجوال" icon="📱">
+                  <input
+                    className={inputClass} type="tel" dir="ltr" placeholder="05XXXXXXXX"
+                    value={phone} onChange={(e) => onPhoneChange?.(e.target.value)}
+                    required autoComplete="tel" data-testid="input-phone"
+                  />
+                </Field>
+                <Field label="كلمة المرور" icon="🔒">
+                  <input
+                    className={inputClass} type="password" dir="ltr" placeholder="••••••••"
+                    value={password} onChange={(e) => onPasswordChange?.(e.target.value)}
+                    required autoComplete="new-password" data-testid="input-password"
+                  />
+                </Field>
+              </div>
+            </Card>
+          </motion.div>
+        )}
+
         {/* ── القسم الثالث: كود التسجيل ── */}
         <motion.div
           initial={{ opacity: 0, y: 16 }}
@@ -691,9 +754,29 @@ export function PharmacyRegistrationForm() {
           </Card>
         </motion.div>
 
+        {/* ── زر الإنشاء المدمج — وضع التضمين فقط ── */}
+        {embedded && (
+          <motion.button
+            type="submit"
+            disabled={isLoading}
+            whileHover={{ scale: 1.01 }}
+            whileTap={{ scale: 0.98 }}
+            data-testid="button-submit"
+            className="w-full py-4 rounded-2xl text-white font-bold text-base shadow-lg disabled:opacity-70"
+            style={{
+              background: "linear-gradient(135deg, #34d399, #0d9488)",
+              boxShadow: "0 4px 24px rgba(52,211,153,0.4), 0 2px 8px rgba(0,0,0,0.1)",
+            }}
+            dir="rtl"
+          >
+            {isLoading ? "..." : "إنشاء حساب صيدلية"}
+          </motion.button>
+        )}
+
       </form>
 
-      {/* ── زر الحفظ الثابت أسفل الشاشة ── */}
+      {/* ── زر الحفظ الثابت أسفل الشاشة — صفحة مستقلة فقط ── */}
+      {!embedded && (
       <div
         className="fixed bottom-0 left-0 right-0 z-20 px-4 pb-safe-bottom pb-6 pt-4"
         style={{ background: "rgba(255,255,255,0.9)", backdropFilter: "blur(16px)", borderTop: "1px solid rgba(0,0,0,0.06)" }}
@@ -748,6 +831,7 @@ export function PharmacyRegistrationForm() {
           </motion.button>
         </div>
       </div>
+      )}
 
       {/* ── GPS Modal ── */}
       <AnimatePresence>
