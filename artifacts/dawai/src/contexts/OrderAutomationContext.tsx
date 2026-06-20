@@ -1,10 +1,13 @@
 /**
- * OrderAutomationContext
+ * OrderAutomationContext — Full-Stack Integration
  * ─────────────────────────────────────────────────────────────────────────
- * يُدير ثلاثة محاور أتمتة:
- *  1. خصم المخزون (Optimistic UI → Webhook inventory-sync)
- *  2. إشعار واتساب (Webhook whatsapp-alert)
- *  3. التوجيه الذكي (Smart Routing): مؤقت 15 ثانية → صيدلية بديلة
+ * يُدير ثلاثة محاور أتمتة عبر API Routes حقيقية:
+ *
+ *  1. خصم المخزون      → POST /api/inventory/sync
+ *  2. إشعار واتساب    → POST /api/notifications/whatsapp
+ *  3. التوجيه الذكي   → POST /api/orders/timeout  (مؤقت 15 ثانية)
+ *
+ * كل خطوة تدعم: loading state، error handling، واسترداد المخزون عند الفشل.
  */
 import {
   createContext,
@@ -24,44 +27,50 @@ export type AutomationStep =
   | "inventory-sync"
   | "whatsapp-alert"
   | "done"
-  | "routing"       // انتهى وقت الصيدلية الأولى — جاري التوجيه
-  | "routed"        // تم الإرسال للصيدلية البديلة
+  | "routing"
+  | "routed"
   | "error";
 
 export interface OrderPayload {
-  orderId: number;
-  medicationId: number;
+  orderId:        number;
+  medicationId:   number;
   medicationName: string;
-  quantity: number;
-  totalPrice: number;
-  pharmacyId: number;
-  pharmacyName: string;
-  /** رقم المريض — يُرسل في webhook واتساب */
-  patientPhone: string;
+  quantity:       number;
+  totalPrice:     number;
+  pharmacyId:     number;
+  pharmacyName:   string;
+  /** رقم المريض — يُرسل لـ /api/notifications/whatsapp */
+  patientPhone:   string;
 }
 
 export interface AutomationEntry {
-  step: AutomationStep;
-  payload: OrderPayload;
+  step:              AutomationStep;
+  payload:           OrderPayload;
   fallbackPharmacy?: string;
-  error?: string;
-  acceptedAt?: number;
+  /** رسالة الخطأ إن وجدت */
+  error?:            string;
+  /** الخطوة التي فشلت */
+  failedStep?:       string;
+  acceptedAt?:       number;
+  /** بيانات الصيدلية البديلة من الخادم */
+  fallbackData?:     {
+    name: string; branch: string; address?: string;
+    tiktok: string; instagram: string;
+  };
 }
 
 interface AutomationState {
-  /** مفتاح: orderId */
-  entries: Record<number, AutomationEntry>;
-  /** خصم مخزون متفائل: medicationId → كمية منقوصة */
+  entries:             Record<number, AutomationEntry>;
   inventoryDeductions: Record<number, number>;
 }
 
 type Action =
-  | { type: "WATCH";         payload: OrderPayload }
-  | { type: "SET_STEP";      orderId: number; step: AutomationStep; extra?: Partial<AutomationEntry> }
-  | { type: "DEDUCT";        medicationId: number; qty: number }
-  | { type: "RESTORE";       medicationId: number; qty: number }
-  | { type: "REMOVE";        orderId: number }
-  | { type: "SET_FALLBACK";  orderId: number; pharmacy: string };
+  | { type: "WATCH";        payload: OrderPayload }
+  | { type: "SET_STEP";     orderId: number; step: AutomationStep; extra?: Partial<AutomationEntry> }
+  | { type: "DEDUCT";       medicationId: number; qty: number }
+  | { type: "RESTORE";      medicationId: number; qty: number }
+  | { type: "REMOVE";       orderId: number }
+  | { type: "SET_FALLBACK"; orderId: number; pharmacy: string; data?: AutomationEntry["fallbackData"] };
 
 // ═══════════════════════════════════════════════════════════════
 // Reducer
@@ -76,30 +85,22 @@ function reducer(state: AutomationState, action: Action): AutomationState {
           [action.payload.orderId]: { step: "idle", payload: action.payload },
         },
       };
-
     case "SET_STEP":
       return {
         ...state,
         entries: {
           ...state.entries,
-          [action.orderId]: {
-            ...state.entries[action.orderId],
-            step: action.step,
-            ...action.extra,
-          },
+          [action.orderId]: { ...state.entries[action.orderId], step: action.step, ...action.extra },
         },
       };
-
     case "DEDUCT":
       return {
         ...state,
         inventoryDeductions: {
           ...state.inventoryDeductions,
-          [action.medicationId]:
-            (state.inventoryDeductions[action.medicationId] ?? 0) + action.qty,
+          [action.medicationId]: (state.inventoryDeductions[action.medicationId] ?? 0) + action.qty,
         },
       };
-
     case "RESTORE":
       return {
         ...state,
@@ -111,7 +112,6 @@ function reducer(state: AutomationState, action: Action): AutomationState {
           ),
         },
       };
-
     case "SET_FALLBACK":
       return {
         ...state,
@@ -120,130 +120,132 @@ function reducer(state: AutomationState, action: Action): AutomationState {
           [action.orderId]: {
             ...state.entries[action.orderId],
             fallbackPharmacy: action.pharmacy,
+            fallbackData:     action.data,
           },
         },
       };
-
     case "REMOVE": {
       const { [action.orderId]: _, ...rest } = state.entries;
       return { ...state, entries: rest };
     }
-
     default:
       return state;
   }
 }
 
 // ═══════════════════════════════════════════════════════════════
-// Webhook helpers — ضع روابط n8n الحقيقية هنا لاحقاً
+// API helpers — مسارات محلية حقيقية
 // ═══════════════════════════════════════════════════════════════
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
-/**
- * 📦 Webhook: خصم المخزون
- * ────────────────────────
- * TODO: استبدل هذا المسار بـ n8n Webhook URL الخاص بك:
- *   const N8N_INVENTORY_WEBHOOK = "https://your-n8n.domain/webhook/inventory-sync";
- *   await fetch(N8N_INVENTORY_WEBHOOK, { method: "POST", ... });
- */
-async function callInventorySyncWebhook(payload: {
-  pharmacyId: number;
-  medicationId: number;
-  qty: number;
-  token: string;
-}) {
-  const res = await fetch(`${BASE}/api/webhooks/inventory-sync`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${payload.token}`,
-    },
-    body: JSON.stringify({
-      pharmacyId: payload.pharmacyId,
-      medicationId: payload.medicationId,
-      quantity: payload.qty,
-    }),
-  });
-  if (!res.ok) throw new Error("inventory-sync failed");
-  return res.json();
+interface ApiResult<T = unknown> {
+  ok:    boolean;
+  data?: T;
+  error?: string;
 }
 
-/**
- * 📱 Webhook: إشعار واتساب
- * ─────────────────────────
- * TODO: استبدل هذا المسار بـ n8n Webhook URL الخاص بك:
- *   const N8N_WHATSAPP_WEBHOOK = "https://your-n8n.domain/webhook/whatsapp-alert";
- *   await fetch(N8N_WHATSAPP_WEBHOOK, { method: "POST", ... });
- */
-async function callWhatsAppWebhook(payload: {
-  patientPhone: string;
-  medicationName: string;
-  totalPrice: number;
-  pharmacyName: string;
-}) {
-  const res = await fetch(`${BASE}/api/webhooks/whatsapp-alert`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-  if (!res.ok) throw new Error("whatsapp-alert failed");
-  return res.json();
+async function apiPost<T>(path: string, body: object, token?: string): Promise<ApiResult<T>> {
+  try {
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+
+    const res = await fetch(`${BASE}${path}`, {
+      method:  "POST",
+      headers,
+      body:    JSON.stringify(body),
+    });
+
+    const data = await res.json();
+    if (!res.ok) return { ok: false, error: data?.error ?? `HTTP ${res.status}` };
+    return { ok: true, data };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : "خطأ في الاتصال بالخادم" };
+  }
 }
 
+// ─── 1. خصم المخزون ─────────────────────────────────────────
 /**
- * 🔁 Webhook: توجيه الطلب لصيدلية بديلة
- * ───────────────────────────────────────
- * TODO: استبدل هذا المسار بـ n8n Webhook URL الخاص بك:
- *   const N8N_ROUTING_WEBHOOK = "https://your-n8n.domain/webhook/smart-routing";
- *   await fetch(N8N_ROUTING_WEBHOOK, { method: "POST", ... });
+ * POST /api/inventory/sync
+ * يخصم الكمية من Mock DB + PostgreSQL ويُعيد بيانات الصيدلية
+ *
+ * TODO: لربط n8n — أضف Webhook node يستقبل نفس الـ payload ثم:
+ *   → Postgres node: UPDATE pharmacy_medications SET quantity = quantity - qty
  */
-async function callSmartRoutingWebhook(payload: {
-  orderId: number;
-  originalPharmacyId: number;
-  fallbackPharmacy: string;
-}) {
-  const res = await fetch(`${BASE}/api/webhooks/smart-routing`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
+async function syncInventory(payload: OrderPayload, token?: string) {
+  return apiPost<{
+    success: boolean;
+    message: string;
+    remaining: number;
+    branch: string;
+    pharmacy?: { name: string; branch: string; tiktok: string; instagram: string };
+  }>("/api/inventory/sync", {
+    orderId:        payload.orderId,
+    pharmacyId:     payload.pharmacyId,
+    medicationId:   payload.medicationId,
+    quantity:       payload.quantity,
+    medicationName: payload.medicationName,
+    patientPhone:   payload.patientPhone,
+    totalPrice:     payload.totalPrice,
+  }, token);
+}
+
+// ─── 2. إشعار واتساب ─────────────────────────────────────────
+/**
+ * POST /api/notifications/whatsapp
+ * يُسجّل رسالة واتساب محاكاة في Console + Mock DB
+ *
+ * TODO: لربط Twilio/WhatsApp Business API:
+ *   استبدل بـ n8n HTTP Request node أو Twilio SDK
+ *   const client = twilio(accountSid, authToken);
+ *   client.messages.create({ from: "whatsapp:+14155238886", to: `whatsapp:${phone}`, body })
+ */
+async function sendWhatsApp(payload: OrderPayload, branch: string) {
+  return apiPost<{
+    success: boolean;
+    message: string;
+    to: string;
+    messageId: string;
+    sentAt: string;
+    preview: string;
+  }>("/api/notifications/whatsapp", {
+    patientPhone:  payload.patientPhone,
+    medicationName: payload.medicationName,
+    totalPrice:    payload.totalPrice,
+    pharmacyName:  payload.pharmacyName,
+    orderId:       payload.orderId,
+    branch,
   });
-  if (!res.ok) throw new Error("smart-routing failed");
-  return res.json();
+}
+
+// ─── 3. التوجيه الذكي ─────────────────────────────────────────
+/**
+ * POST /api/orders/timeout
+ * يُحوّل الطلب لصيدلية بديلة في Mock DB
+ *
+ * TODO: للإنتاج:
+ *   await db.update(ordersTable).set({ pharmacyId: fallback.id }).where(...)
+ */
+async function timeoutOrder(orderId: number, pharmacyId: number, reason = "timeout") {
+  return apiPost<{
+    success: boolean;
+    message: string;
+    fallbackPharmacy: {
+      id: number; name: string; branch: string; address: string;
+      tiktok: string; instagram: string;
+    };
+    originalBranch: string;
+  }>("/api/orders/timeout", { orderId, originalPharmacyId: pharmacyId, reason });
 }
 
 // ═══════════════════════════════════════════════════════════════
-// Context
+// Context interface
 // ═══════════════════════════════════════════════════════════════
 interface OrderAutomationCtx {
-  state: AutomationState;
-
-  /**
-   * يبدأ مراقبة طلب جديد ويُشغّل مؤقت التوجيه الذكي (15 ثانية).
-   * استدعِه مباشرة بعد إنشاء الطلب من جانب المريض.
-   */
-  watchOrder: (payload: OrderPayload, token: string) => void;
-
-  /**
-   * تسلسل الأتمتة الكامل عند قبول الصيدلي للطلب:
-   *   1. يوقف مؤقت التوجيه
-   *   2. خصم مخزون متفائل (Optimistic)
-   *   3. Webhook: inventory-sync
-   *   4. Webhook: whatsapp-alert
-   *   5. PUT /pharmacy/orders/:id/status → confirmed
-   */
-  acceptOrder: (orderId: number, token: string) => Promise<void>;
-
-  /**
-   * رفض الطلب + إلغاء المؤقت + استعادة المخزون إن لزم.
-   */
-  rejectOrder: (orderId: number, token: string) => Promise<void>;
-
-  /**
-   * يُخبر Context أن الطلب اكتمل (مثلاً: استُلم الدواء).
-   */
-  completeOrder: (orderId: number) => void;
-
-  /** قراءة الخصم المتفائل لمنتج ما لعرضه في مكون المخزون */
+  state:                 AutomationState;
+  watchOrder:            (payload: OrderPayload, token: string) => void;
+  acceptOrder:           (orderId: number, token: string) => Promise<void>;
+  rejectOrder:           (orderId: number, token: string) => Promise<void>;
+  completeOrder:         (orderId: number) => void;
   getInventoryDeduction: (medicationId: number) => number;
 }
 
@@ -259,7 +261,6 @@ export function useOrderAutomation() {
 // Provider
 // ═══════════════════════════════════════════════════════════════
 const SMART_ROUTING_TIMEOUT_MS = 15_000;
-const FALLBACK_PHARMACIES = ["صيدلية الحياة", "صيدلية الأمل", "صيدلية النور", "صيدلية الشفاء"];
 
 export function OrderAutomationProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(reducer, {
@@ -267,49 +268,49 @@ export function OrderAutomationProvider({ children }: { children: ReactNode }) {
     inventoryDeductions: {},
   });
 
-  // مراجع المؤقتات: orderId → timerId — لضمان تنظيف الذاكرة (Memory Leak Prevention)
+  // مراجع المؤقتات — لضمان تنظيف الذاكرة (Memory Leak Prevention)
   const timersRef = useRef<Record<number, ReturnType<typeof setTimeout>>>({});
 
-  // تنظيف جميع المؤقتات عند فك تركيب الـ Provider
   useEffect(() => {
-    return () => {
-      Object.values(timersRef.current).forEach(clearTimeout);
-    };
+    return () => { Object.values(timersRef.current).forEach(clearTimeout); };
   }, []);
 
-  // ─── watchOrder ───────────────────────────────────────────
+  // ─── watchOrder ───────────────────────────────────────────────
   const watchOrder = useCallback((payload: OrderPayload, token: string) => {
+    // تجنب إعادة المراقبة لنفس الطلب
+    if (state.entries[payload.orderId]) return;
+
     dispatch({ type: "WATCH", payload });
 
-    // بدء مؤقت التوجيه الذكي
     const timerId = setTimeout(async () => {
-      // تحقق إذا كان الطلب لا يزال في وضع الانتظار
+      delete timersRef.current[payload.orderId];
+
       dispatch({ type: "SET_STEP", orderId: payload.orderId, step: "routing" });
 
-      // اختر صيدلية بديلة عشوائية من القائمة
-      const fallback = FALLBACK_PHARMACIES[Math.floor(Math.random() * FALLBACK_PHARMACIES.length)];
-      dispatch({ type: "SET_FALLBACK", orderId: payload.orderId, pharmacy: fallback });
+      // POST /api/orders/timeout — الخادم يختار الصيدلية البديلة
+      const result = await timeoutOrder(payload.orderId, payload.pharmacyId, "timeout");
 
-      try {
-        // 🔁 Webhook: إشعار التوجيه الذكي
-        // TODO: وصّل هذا بـ n8n ليُغيّر pharmacyId في قاعدة البيانات ويُشعر المريض
-        await callSmartRoutingWebhook({
-          orderId: payload.orderId,
-          originalPharmacyId: payload.pharmacyId,
-          fallbackPharmacy: fallback,
+      if (result.ok && result.data?.fallbackPharmacy) {
+        const fb = result.data.fallbackPharmacy;
+        dispatch({
+          type:     "SET_FALLBACK",
+          orderId:  payload.orderId,
+          pharmacy: fb.name,
+          data:     { name: fb.name, branch: fb.branch, address: fb.address, tiktok: fb.tiktok, instagram: fb.instagram },
         });
-      } catch {
-        // التوجيه يعمل حتى لو فشل الـ webhook
+        dispatch({ type: "SET_STEP", orderId: payload.orderId, step: "routed" });
+      } else {
+        dispatch({
+          type: "SET_STEP", orderId: payload.orderId, step: "error",
+          extra: { error: result.error ?? "فشل التوجيه", failedStep: "smart-routing" },
+        });
       }
-
-      dispatch({ type: "SET_STEP", orderId: payload.orderId, step: "routed", extra: { fallbackPharmacy: fallback } });
-      delete timersRef.current[payload.orderId];
     }, SMART_ROUTING_TIMEOUT_MS);
 
     timersRef.current[payload.orderId] = timerId;
-  }, []);
+  }, [state.entries]);
 
-  // ─── acceptOrder ──────────────────────────────────────────
+  // ─── acceptOrder — تسلسل الأتمتة الكامل ─────────────────────
   const acceptOrder = useCallback(async (orderId: number, token: string) => {
     const entry = state.entries[orderId];
     if (!entry) return;
@@ -321,80 +322,67 @@ export function OrderAutomationProvider({ children }: { children: ReactNode }) {
       delete timersRef.current[orderId];
     }
 
-    // 2️⃣ خصم المخزون — Optimistic UI (فوري قبل انتهاء الـ API call)
+    // 2️⃣ Optimistic UI — خصم فوري في الواجهة
     dispatch({ type: "DEDUCT", medicationId: payload.medicationId, qty: payload.quantity });
     dispatch({ type: "SET_STEP", orderId, step: "inventory-sync" });
 
-    try {
-      // 3️⃣ Webhook: تحديث المخزون في قاعدة البيانات
-      // 📦 TODO: n8n → inventory-sync workflow
-      await callInventorySyncWebhook({
-        pharmacyId: payload.pharmacyId,
-        medicationId: payload.medicationId,
-        qty: payload.quantity,
-        token,
-      });
-    } catch {
-      // في حال فشل الـ Webhook، استعد الخصم المتفائل
+    // 3️⃣ POST /api/inventory/sync — خصم حقيقي في الخادم
+    const invResult = await syncInventory(payload, token);
+
+    if (!invResult.ok) {
+      // فشل الخصم — استعادة Optimistic update
       dispatch({ type: "RESTORE", medicationId: payload.medicationId, qty: payload.quantity });
+      dispatch({
+        type: "SET_STEP", orderId, step: "error",
+        extra: { error: invResult.error, failedStep: "inventory-sync" },
+      });
+      return;
     }
 
+    const branch = invResult.data?.branch ?? "Gmunden";
+
+    // 4️⃣ POST /api/notifications/whatsapp — إشعار المريض
     dispatch({ type: "SET_STEP", orderId, step: "whatsapp-alert" });
 
-    try {
-      // 4️⃣ Webhook: إشعار المريض عبر واتساب
-      // 📱 TODO: n8n → whatsapp-alert workflow → Twilio/WhatsApp Business API
-      await callWhatsAppWebhook({
-        patientPhone: payload.patientPhone,
-        medicationName: payload.medicationName,
-        totalPrice: payload.totalPrice,
-        pharmacyName: payload.pharmacyName,
-      });
-    } catch {
-      // إشعار واتساب اختياري — لا يوقف العملية
+    const waResult = await sendWhatsApp(payload, branch);
+
+    if (!waResult.ok) {
+      // إشعار واتساب اختياري — لا يوقف العملية، لكن نُسجّل الخطأ
+      console.warn("[OrderAutomation] WhatsApp notification failed:", waResult.error);
     }
 
-    // 5️⃣ تحديث حالة الطلب في قاعدة البيانات
-    const BASE_URL = import.meta.env.BASE_URL.replace(/\/$/, "");
-    await fetch(`${BASE_URL}/api/pharmacy/orders/${orderId}/status`, {
-      method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ status: "confirmed" }),
+    // 5️⃣ تحديث حالة الطلب في PostgreSQL → confirmed
+    await fetch(`${BASE}/api/pharmacy/orders/${orderId}/status`, {
+      method:  "PUT",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body:    JSON.stringify({ status: "confirmed" }),
     });
 
     dispatch({ type: "SET_STEP", orderId, step: "done", extra: { acceptedAt: Date.now() } });
   }, [state.entries]);
 
-  // ─── rejectOrder ──────────────────────────────────────────
+  // ─── rejectOrder ─────────────────────────────────────────────
   const rejectOrder = useCallback(async (orderId: number, token: string) => {
-    // إلغاء المؤقت
     if (timersRef.current[orderId]) {
       clearTimeout(timersRef.current[orderId]);
       delete timersRef.current[orderId];
     }
 
-    const BASE_URL = import.meta.env.BASE_URL.replace(/\/$/, "");
-    await fetch(`${BASE_URL}/api/pharmacy/orders/${orderId}/status`, {
-      method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ status: "rejected" }),
+    await fetch(`${BASE}/api/pharmacy/orders/${orderId}/status`, {
+      method:  "PUT",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body:    JSON.stringify({ status: "rejected" }),
     });
 
     dispatch({ type: "REMOVE", orderId });
   }, []);
 
-  // ─── completeOrder ────────────────────────────────────────
+  // ─── completeOrder ────────────────────────────────────────────
   const completeOrder = useCallback((orderId: number) => {
     dispatch({ type: "REMOVE", orderId });
   }, []);
 
-  // ─── getInventoryDeduction ───────────────────────────────
+  // ─── getInventoryDeduction ────────────────────────────────────
   const getInventoryDeduction = useCallback(
     (medicationId: number) => state.inventoryDeductions[medicationId] ?? 0,
     [state.inventoryDeductions],
@@ -402,14 +390,7 @@ export function OrderAutomationProvider({ children }: { children: ReactNode }) {
 
   return (
     <OrderAutomationContext.Provider
-      value={{
-        state,
-        watchOrder,
-        acceptOrder,
-        rejectOrder,
-        completeOrder,
-        getInventoryDeduction,
-      }}
+      value={{ state, watchOrder, acceptOrder, rejectOrder, completeOrder, getInventoryDeduction }}
     >
       {children}
     </OrderAutomationContext.Provider>

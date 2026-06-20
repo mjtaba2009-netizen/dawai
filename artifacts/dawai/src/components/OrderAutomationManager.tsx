@@ -1,107 +1,130 @@
 /**
- * OrderAutomationManager
+ * OrderAutomationManager — لوحة أنبوب الأتمتة العائمة
  * ─────────────────────────────────────────────────────────────────────────
- * مكوّن مرئي يعرض خط أنابيب الأتمتة (Automation Pipeline) كلوحة عائمة.
- * يظهر تلقائياً عند وجود أي طلب جارية معالجته ويختفي عند الانتهاء.
- *
- * الخطوات المعروضة:
- *   ✓ قبول الطلب
- *   ⟳ تحديث المخزون  (inventory-sync webhook)
- *   ⟳ إشعار واتساب  (whatsapp-alert webhook)
- *   ✓ اكتمل
- *
- * حالات خاصة:
- *   🔁 التوجيه الذكي (routing / routed) — انتهت مهلة الصيدلية
+ * تُعرض تلقائياً عند وجود طلبات جارية المعالجة.
+ * تدعم حالات: Loading، Error، Success، SmartRouting
  */
 import { motion, AnimatePresence } from "framer-motion";
-import { Check, Loader2, AlertCircle, Wifi } from "lucide-react";
+import { Check, Loader2, AlertCircle, Wifi, ExternalLink, X } from "lucide-react";
 import { useOrderAutomation, type AutomationStep } from "@/contexts/OrderAutomationContext";
 
-// ═══════════════════════════════════════════════════════
-// تعريف خطوات الأنبوب
-// ═══════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════
+// Pipeline steps
+// ═══════════════════════════════════════════════════════════════
 interface PipelineStep {
-  id: AutomationStep;
-  label: string;
+  id:       AutomationStep;
+  label:    string;
   sublabel: string;
-  emoji: string;
+  emoji:    string;
+  apiPath?: string;
 }
 
 const PIPELINE: PipelineStep[] = [
-  { id: "idle",           label: "استلام الطلب",       sublabel: "وصل الطلب للصيدلية",             emoji: "📋" },
-  { id: "inventory-sync", label: "تحديث المخزون",      sublabel: "جاري الخصم من المخزون...",        emoji: "📦" },
-  { id: "whatsapp-alert", label: "إشعار واتساب",       sublabel: "جاري إرسال رسالة للمريض...",      emoji: "📱" },
-  { id: "done",           label: "اكتمل",               sublabel: "تم تجهيز الدواء وإشعار المريض",  emoji: "✅" },
+  {
+    id:       "idle",
+    label:    "استلام الطلب",
+    sublabel: "وصل الطلب للصيدلية",
+    emoji:    "📋",
+  },
+  {
+    id:       "inventory-sync",
+    label:    "تحديث المخزون",
+    sublabel: "جاري الخصم من المخزون...",
+    emoji:    "📦",
+    apiPath:  "POST /api/inventory/sync",
+  },
+  {
+    id:       "whatsapp-alert",
+    label:    "إشعار واتساب",
+    sublabel: "جاري إرسال رسالة للمريض...",
+    emoji:    "📱",
+    apiPath:  "POST /api/notifications/whatsapp",
+  },
+  {
+    id:       "done",
+    label:    "اكتمل",
+    sublabel: "تم تجهيز الدواء وإشعار المريض",
+    emoji:    "✅",
+  },
 ];
 
 const ROUTING_STEPS: PipelineStep[] = [
-  { id: "routing", label: "انتهت مهلة الاستجابة", sublabel: "جاري البحث عن صيدلية بديلة...", emoji: "⏱" },
-  { id: "routed",  label: "تم التوجيه",            sublabel: "تم إرسال الطلب لصيدلية أخرى",  emoji: "🔁" },
+  {
+    id:       "routing",
+    label:    "انتهت مهلة الاستجابة",
+    sublabel: "جاري البحث في صيدلية بديلة...",
+    emoji:    "⏱",
+    apiPath:  "POST /api/orders/timeout",
+  },
+  {
+    id:       "routed",
+    label:    "تم التوجيه",
+    sublabel: "تم إرسال الطلب لصيدلية أخرى",
+    emoji:    "🔁",
+  },
 ];
 
-// ═══════════════════════════════════════════════════════
-// مكوّن نقطة الحالة
-// ═══════════════════════════════════════════════════════
-function StepDot({ isActive, isDone, isError }: { isActive: boolean; isDone: boolean; isError?: boolean }) {
+// ═══════════════════════════════════════════════════════════════
+// نقطة الحالة
+// ═══════════════════════════════════════════════════════════════
+function StepDot({
+  isActive, isDone, isError,
+}: { isActive: boolean; isDone: boolean; isError?: boolean }) {
   if (isError) return (
     <div className="w-6 h-6 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
       <AlertCircle className="w-3.5 h-3.5 text-red-500" />
     </div>
   );
-
   if (isDone) return (
     <motion.div
-      initial={{ scale: 0 }}
-      animate={{ scale: 1 }}
+      initial={{ scale: 0 }} animate={{ scale: 1 }}
       transition={{ type: "spring", damping: 15, stiffness: 400 }}
       className="w-6 h-6 rounded-full bg-emerald-500 flex items-center justify-center flex-shrink-0"
     >
       <Check className="w-3.5 h-3.5 text-white stroke-[3]" />
     </motion.div>
   );
-
   if (isActive) return (
     <div className="w-6 h-6 rounded-full border-2 border-emerald-400 bg-white flex items-center justify-center flex-shrink-0">
-      <motion.div
-        animate={{ rotate: 360 }}
-        transition={{ duration: 0.9, repeat: Infinity, ease: "linear" }}
-      >
+      <motion.div animate={{ rotate: 360 }} transition={{ duration: 0.9, repeat: Infinity, ease: "linear" }}>
         <Loader2 className="w-3.5 h-3.5 text-emerald-500" />
       </motion.div>
     </div>
   );
-
-  return (
-    <div className="w-6 h-6 rounded-full border-2 border-slate-200 bg-white flex-shrink-0" />
-  );
+  return <div className="w-6 h-6 rounded-full border-2 border-slate-200 bg-white flex-shrink-0" />;
 }
 
-// ═══════════════════════════════════════════════════════
-// بطاقة طلب واحد داخل الـ Manager
-// ═══════════════════════════════════════════════════════
-function AutomationCard({ orderId }: { orderId: number }) {
+// ═══════════════════════════════════════════════════════════════
+// بطاقة طلب واحد
+// ═══════════════════════════════════════════════════════════════
+function AutomationCard({ orderId, onDismiss }: { orderId: number; onDismiss: () => void }) {
   const { state } = useOrderAutomation();
   const entry = state.entries[orderId];
   if (!entry) return null;
 
-  const { step, payload, fallbackPharmacy } = entry;
+  const { step, payload, fallbackPharmacy, fallbackData, error, failedStep } = entry;
   const isRouting = step === "routing" || step === "routed";
+  const isError   = step === "error";
+  const isDone    = step === "done";
 
-  // تحديد الخطوة الحالية في الأنبوب العادي
-  const normalStepIndex = PIPELINE.findIndex((s) => s.id === step);
-  const currentPipelineIndex = normalStepIndex === -1 ? 0 : normalStepIndex;
+  const stepIndex = PIPELINE.findIndex((s) => s.id === step);
+  const currentIdx = stepIndex === -1 ? 0 : stepIndex;
+
+  const progressPct = isDone
+    ? 100
+    : Math.round((currentIdx / (PIPELINE.length - 1)) * 100);
 
   return (
     <motion.div
       layout
       initial={{ opacity: 0, y: 16, scale: 0.96 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
-      exit={{ opacity: 0, y: -8, scale: 0.95 }}
+      exit={{ opacity: 0, y: -8, scale: 0.95, transition: { duration: 0.18 } }}
       transition={{ type: "spring", damping: 22, stiffness: 280 }}
       className="rounded-2xl overflow-hidden
-        bg-white/80 backdrop-blur-2xl
+        bg-white/85 backdrop-blur-2xl
         border border-white/60
-        shadow-[0_8px_28px_rgb(0,0,0,0.10)]"
+        shadow-[0_8px_28px_rgb(0,0,0,0.12)]"
     >
       {/* رأس البطاقة */}
       <div className="px-4 py-3 border-b border-slate-100/80 flex items-center gap-2">
@@ -112,23 +135,64 @@ function AutomationCard({ orderId }: { orderId: number }) {
           <p className="text-slate-800 font-bold text-sm truncate">{payload.medicationName}</p>
           <p className="text-slate-400 text-[11px]">{payload.pharmacyName} · {payload.totalPrice.toFixed(2)} IQD</p>
         </div>
-        <div className="flex items-center gap-1 px-2 py-1 rounded-xl bg-emerald-50">
-          <motion.div
-            className="w-1.5 h-1.5 rounded-full bg-emerald-500"
-            animate={{ opacity: step === "done" || step === "routed" ? 1 : [1, 0, 1] }}
-            transition={{ duration: 1.2, repeat: step === "done" || step === "routed" ? 0 : Infinity }}
-          />
-          <span className="text-emerald-700 text-[10px] font-semibold">أتمتة نشطة</span>
+
+        {/* شارة الحالة */}
+        <div className={`flex items-center gap-1 px-2 py-1 rounded-xl text-[10px] font-semibold ${
+          isError   ? "bg-red-50 text-red-600"      :
+          isDone    ? "bg-emerald-50 text-emerald-700" :
+          isRouting ? "bg-amber-50 text-amber-600"  :
+                      "bg-emerald-50 text-emerald-700"
+        }`}>
+          {isError ? (
+            <AlertCircle className="w-3 h-3" />
+          ) : isDone ? (
+            <Check className="w-3 h-3" />
+          ) : (
+            <motion.div
+              className={`w-1.5 h-1.5 rounded-full ${isRouting ? "bg-amber-500" : "bg-emerald-500"}`}
+              animate={{ opacity: [1, 0.4, 1] }}
+              transition={{ duration: 1.2, repeat: Infinity }}
+            />
+          )}
+          {isError ? "خطأ" : isDone ? "اكتمل" : isRouting ? "توجيه..." : "نشط"}
         </div>
+
+        {/* زر إغلاق — عند الانتهاء أو الخطأ */}
+        {(isDone || isError || step === "routed") && (
+          <motion.button
+            initial={{ opacity: 0, scale: 0 }}
+            animate={{ opacity: 1, scale: 1 }}
+            whileTap={{ scale: 0.9 }}
+            onClick={onDismiss}
+            className="w-6 h-6 bg-slate-100 rounded-lg flex items-center justify-center flex-shrink-0"
+          >
+            <X className="w-3.5 h-3.5 text-slate-400" />
+          </motion.button>
+        )}
       </div>
 
-      {/* خط الأنبوب */}
-      {!isRouting ? (
+      {/* ── حالة الخطأ ── */}
+      {isError && (
+        <div className="px-4 py-3">
+          <div className="p-3 rounded-xl bg-red-50 border border-red-100">
+            <p className="text-red-700 text-xs font-semibold mb-0.5">
+              ❌ فشلت خطوة: {failedStep ?? "غير محددة"}
+            </p>
+            <p className="text-red-500 text-[11px]">{error ?? "خطأ غير معروف في الخادم"}</p>
+          </div>
+          <p className="text-slate-400 text-[10px] mt-2 text-center">
+            تحقق من سجلات الخادم أو أعد المحاولة
+          </p>
+        </div>
+      )}
+
+      {/* ── خط الأنبوب العادي ── */}
+      {!isRouting && !isError && (
         <div className="px-4 py-3 space-y-2">
           {PIPELINE.map((pStep, i) => {
-            const isDone   = i < currentPipelineIndex || step === "done";
-            const isActive = i === currentPipelineIndex && step !== "done";
-            const isPending = i > currentPipelineIndex;
+            const isStepDone   = i < currentIdx || isDone;
+            const isStepActive = i === currentIdx && !isDone;
+            const isPending    = i > currentIdx && !isDone;
 
             return (
               <motion.div
@@ -138,12 +202,15 @@ function AutomationCard({ orderId }: { orderId: number }) {
                 transition={{ delay: i * 0.05, type: "spring", damping: 22 }}
                 className="flex items-center gap-2.5"
               >
-                <StepDot isActive={isActive} isDone={isDone} />
+                <StepDot isActive={isStepActive} isDone={isStepDone} />
                 <div className="flex-1 min-w-0">
-                  <p className={`text-sm font-semibold leading-tight ${isDone ? "text-emerald-700" : isActive ? "text-slate-800" : "text-slate-300"}`}>
+                  <p className={`text-sm font-semibold leading-tight ${
+                    isStepDone   ? "text-emerald-700" :
+                    isStepActive ? "text-slate-800"   : "text-slate-300"
+                  }`}>
                     {pStep.emoji} {pStep.label}
                   </p>
-                  {isActive && (
+                  {isStepActive && (
                     <motion.p
                       initial={{ opacity: 0, height: 0 }}
                       animate={{ opacity: 1, height: "auto" }}
@@ -153,81 +220,112 @@ function AutomationCard({ orderId }: { orderId: number }) {
                     </motion.p>
                   )}
                 </div>
-                {/* وسم webhook */}
-                {(pStep.id === "inventory-sync" || pStep.id === "whatsapp-alert") && (
-                  <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-mono font-medium flex items-center gap-0.5
-                    ${isDone ? "bg-emerald-50 text-emerald-600" : isActive ? "bg-amber-50 text-amber-600" : "bg-slate-50 text-slate-300"}`}>
+
+                {/* وسم API Path */}
+                {pStep.apiPath && (
+                  <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-mono font-medium flex items-center gap-0.5 flex-shrink-0 ${
+                    isStepDone   ? "bg-emerald-50 text-emerald-600" :
+                    isStepActive ? "bg-amber-50 text-amber-600"     :
+                                   "bg-slate-50 text-slate-300"
+                  }`}>
                     <Wifi className="w-2.5 h-2.5" />
-                    webhook
+                    {pStep.apiPath.split(" ")[1]?.split("/").slice(-1)[0]}
                   </span>
                 )}
               </motion.div>
             );
           })}
 
-          {/* شريط التقدم السفلي */}
+          {/* شريط التقدم */}
           <div className="mt-2 h-1 bg-slate-100 rounded-full overflow-hidden">
             <motion.div
               className="h-full bg-gradient-to-r from-emerald-400 to-teal-400 rounded-full"
               initial={{ width: "0%" }}
-              animate={{
-                width: step === "done"
-                  ? "100%"
-                  : `${(currentPipelineIndex / (PIPELINE.length - 1)) * 100}%`,
-              }}
+              animate={{ width: `${progressPct}%` }}
               transition={{ type: "spring", damping: 22, stiffness: 150 }}
             />
           </div>
         </div>
-      ) : (
-        /* حالة التوجيه الذكي */
+      )}
+
+      {/* ── حالة التوجيه الذكي ── */}
+      {isRouting && (
         <div className="px-4 py-3 space-y-2">
           {ROUTING_STEPS.map((rStep, i) => {
-            const isDone = step === "routed" && rStep.id === "routed";
-            const isActive = (step === "routing" && rStep.id === "routing") ||
-                             (step === "routed"  && rStep.id === "routed");
+            const isStepDone   = step === "routed" && rStep.id === "routed";
+            const isStepActive = step === rStep.id;
 
             return (
-              <motion.div
-                key={rStep.id}
-                initial={{ opacity: 0, x: -8 }}
-                animate={{ opacity: 1, x: 0 }}
+              <motion.div key={rStep.id}
+                initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: i * 0.08, type: "spring", damping: 22 }}
                 className="flex items-center gap-2.5"
               >
-                <StepDot isActive={isActive && !isDone} isDone={isDone} />
+                <StepDot isActive={isStepActive && !isStepDone} isDone={isStepDone} />
                 <div className="flex-1">
-                  <p className={`text-sm font-semibold ${isDone ? "text-amber-700" : isActive ? "text-slate-800" : "text-slate-300"}`}>
+                  <p className={`text-sm font-semibold ${
+                    isStepDone   ? "text-amber-700" :
+                    isStepActive ? "text-slate-800" : "text-slate-300"
+                  }`}>
                     {rStep.emoji} {rStep.label}
                   </p>
-                  {isActive && (
+                  {isStepActive && (
                     <p className="text-[10px] text-amber-500 mt-0.5">{rStep.sublabel}</p>
+                  )}
+                  {rStep.apiPath && isStepActive && (
+                    <span className="text-[9px] text-amber-400 font-mono">{rStep.apiPath}</span>
                   )}
                 </div>
               </motion.div>
             );
           })}
 
-          {/* اسم الصيدلية البديلة */}
-          {step === "routed" && fallbackPharmacy && (
+          {/* بيانات الصيدلية البديلة من الخادم */}
+          {step === "routed" && fallbackData && (
             <motion.div
               initial={{ opacity: 0, y: 6 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.2, type: "spring", damping: 22 }}
-              className="mt-1 p-2.5 rounded-xl bg-amber-50 border border-amber-100"
+              className="mt-1 p-3 rounded-xl bg-amber-50 border border-amber-100 space-y-1.5"
             >
-              <p className="text-amber-700 text-xs font-semibold">تم التوجيه إلى: {fallbackPharmacy}</p>
-              <div className="flex gap-1 mt-1.5">
-                {[0, 1, 2].map((j) => (
-                  <motion.div
-                    key={j}
-                    className="flex-1 h-1 rounded-full bg-amber-300"
-                    animate={{ opacity: [0.3, 1, 0.3] }}
-                    transition={{ duration: 1.2, repeat: Infinity, delay: j * 0.2 }}
-                  />
-                ))}
+              <p className="text-amber-800 text-xs font-bold">🏪 {fallbackData.name}</p>
+              {fallbackData.address && (
+                <p className="text-amber-600 text-[11px]">📍 {fallbackData.address}</p>
+              )}
+              {/* روابط TikTok & Instagram — لا Facebook */}
+              <div className="flex items-center gap-2 pt-0.5">
+                <a
+                  href={fallbackData.tiktok}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1 text-[11px] text-slate-600 font-medium hover:text-black transition-colors"
+                >
+                  <span className="text-sm">🎵</span> TikTok
+                  <ExternalLink className="w-2.5 h-2.5" />
+                </a>
+                <span className="text-slate-200">·</span>
+                <a
+                  href={fallbackData.instagram}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1 text-[11px] text-pink-600 font-medium hover:text-pink-700 transition-colors"
+                >
+                  <span className="text-sm">📸</span> Instagram
+                  <ExternalLink className="w-2.5 h-2.5" />
+                </a>
               </div>
             </motion.div>
+          )}
+
+          {/* متحرك بحث */}
+          {step === "routing" && (
+            <div className="flex gap-1 pt-1">
+              {[0, 1, 2].map((i) => (
+                <motion.div key={i} className="flex-1 h-1 rounded-full bg-amber-200"
+                  animate={{ opacity: [0.3, 1, 0.3] }}
+                  transition={{ duration: 1.2, repeat: Infinity, delay: i * 0.2 }} />
+              ))}
+            </div>
           )}
         </div>
       )}
@@ -235,11 +333,11 @@ function AutomationCard({ orderId }: { orderId: number }) {
   );
 }
 
-// ═══════════════════════════════════════════════════════
-// المكوّن الرئيسي — اللوحة العائمة
-// ═══════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════
+// اللوحة العائمة الرئيسية
+// ═══════════════════════════════════════════════════════════════
 export function OrderAutomationManager() {
-  const { state } = useOrderAutomation();
+  const { state, completeOrder } = useOrderAutomation();
   const orderIds = Object.keys(state.entries).map(Number);
 
   return (
@@ -252,26 +350,29 @@ export function OrderAutomationManager() {
           transition={{ type: "spring", damping: 25, stiffness: 280, mass: 0.8 }}
           className="fixed bottom-24 left-3 right-3 z-50 space-y-2 max-w-[430px] mx-auto"
         >
-          {/* عنوان اللوحة */}
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="flex items-center gap-2 px-3"
-          >
-            <motion.div
-              className="w-2 h-2 rounded-full bg-emerald-500"
-              animate={{ scale: [1, 1.4, 1], opacity: [1, 0.6, 1] }}
-              transition={{ duration: 1.4, repeat: Infinity }}
-            />
-            <span className="text-slate-600 text-[11px] font-semibold">
-              نظام الأتمتة — {orderIds.length} طلب جارٍ
-            </span>
-          </motion.div>
+          {/* عنوان */}
+          <div className="flex items-center justify-between px-3">
+            <div className="flex items-center gap-2">
+              <motion.div
+                className="w-2 h-2 rounded-full bg-emerald-500"
+                animate={{ scale: [1, 1.4, 1], opacity: [1, 0.6, 1] }}
+                transition={{ duration: 1.4, repeat: Infinity }}
+              />
+              <span className="text-slate-600 text-[11px] font-semibold">
+                نظام الأتمتة الشاملة — {orderIds.length} {orderIds.length === 1 ? "طلب" : "طلبات"} جارية
+              </span>
+            </div>
+            <span className="text-slate-400 text-[10px] font-mono">Full-Stack API</span>
+          </div>
 
-          {/* بطاقات الطلبات */}
+          {/* البطاقات */}
           <AnimatePresence mode="popLayout">
             {orderIds.map((id) => (
-              <AutomationCard key={id} orderId={id} />
+              <AutomationCard
+                key={id}
+                orderId={id}
+                onDismiss={() => completeOrder(id)}
+              />
             ))}
           </AnimatePresence>
         </motion.div>
