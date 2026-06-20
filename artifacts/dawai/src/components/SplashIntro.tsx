@@ -1,200 +1,125 @@
 /**
  * SplashIntro — Ultra-Premium Cinematic Splash Screen
+ * "Minimalist Glowing Aura & Fluid Path" concept
  * ─────────────────────────────────────────────────────
- * Timeline (total ≈ 4.5s experience):
- *   0.00s  : Pitch black → spotlight breathes on
- *   0.20s  : Capsule rises from void (spring physics)
- *   1.20s  : Capsule glows + locks in position
- *   1.60s  : "دوائي" springs up
- *   2.00s  : "THE DIGITAL PHARMACY" expands in
- *   2.60s  : "Powered by Promptify IQ" fades in (very subtle)
- *   3.60s  : Exit — zoom-in + deep blur + fade to reveal app
+ * Timeline (hard cap: 3.5s mount → fully unmounted):
+ *   0.00s : Pitch black
+ *   0.00s : Ultra-thin glowing heartbeat (EKG) line draws (pathLength 0→1, 1.2s)
+ *   1.20s : Line collapses into a single glowing dot
+ *   1.35s : Dot bursts softly (scale 0→12) into an ambient aura
+ *   1.50s : Massive blurred Emerald aura breathes on (blur 100px, opacity ~0.4)
+ *   1.50s : "دوائي" reveals — majestic fade-in with upward drift
+ *   2.00s : "THE DIGITAL PHARMACY" fades in
+ *   2.20s : "Powered by Promptify IQ" — barely-visible signature
+ *   2.50s : App triggers unmount → Glass-Wipe exit (zoom 1.1 + blur + fade, 1.0s)
+ *   3.50s : Fully revealed app underneath
+ *
+ * NOTE: the "majestic" title fade is 1.0s (compressed from the ideal 1.5s) so the
+ * full cinematic sequence — including the 1.2s line draw and 1.0s exit wipe — fits
+ * inside the required 3.5s hard cap.
  */
-import { motion, useAnimationControls } from "framer-motion";
-import { useEffect } from "react";
+import { motion } from "framer-motion";
+
+const EMERALD = "#34d399";
 
 // ═══════════════════════════════════════════════════════════════
-// Moving Studio Spotlight
+// Ambient Aura — massive, soft, breathing emerald glow
 // ═══════════════════════════════════════════════════════════════
-function Spotlight({ color, size, delay, duration, xRange, yRange }: {
-  color: string; size: number; delay: number; duration: number;
-  xRange: [number, number]; yRange: [number, number];
-}) {
+function AmbientAura() {
   return (
     <motion.div
-      className="absolute pointer-events-none"
+      className="absolute rounded-full pointer-events-none"
       style={{
-        width: size, height: size,
-        borderRadius: "50%",
-        background: `radial-gradient(circle, ${color} 0%, transparent 70%)`,
-        top: "50%", left: "50%",
-        x: "-50%", y: "-50%",
-        filter: "blur(1px)",
+        width: 620,
+        height: 620,
+        top: "50%",
+        left: "50%",
+        x: "-50%",
+        y: "-50%",
+        background:
+          "radial-gradient(circle, rgba(52,211,153,0.55) 0%, rgba(16,185,129,0.20) 35%, transparent 70%)",
+        filter: "blur(100px)",
       }}
-      animate={{
-        x: [xRange[0] - size / 2, xRange[1] - size / 2, xRange[0] - size / 2],
-        y: [yRange[0] - size / 2, yRange[1] - size / 2, yRange[0] - size / 2],
-        opacity: [0, 0.55, 0.4, 0.55, 0],
-      }}
+      initial={{ opacity: 0, scale: 0.55 }}
+      animate={{ opacity: [0, 0.4, 0.32, 0.4], scale: [0.55, 1, 0.96, 1] }}
       transition={{
-        duration,
-        repeat: Infinity,
-        ease: "easeInOut",
-        delay,
-        times: [0, 0.25, 0.5, 0.75, 1],
+        opacity: {
+          duration: 2.6,
+          delay: 1.5,
+          times: [0, 0.35, 0.7, 1],
+          repeat: Infinity,
+          repeatType: "reverse",
+          ease: "easeInOut",
+        },
+        scale: {
+          duration: 3.2,
+          delay: 1.5,
+          repeat: Infinity,
+          repeatType: "reverse",
+          ease: "easeInOut",
+        },
       }}
     />
   );
 }
 
 // ═══════════════════════════════════════════════════════════════
-// 3D Capsule — The Hero Element
+// Fluid Path — heartbeat line draws, collapses to a dot, bursts
 // ═══════════════════════════════════════════════════════════════
-function Capsule3D() {
-  const glowControls = useAnimationControls();
-
-  useEffect(() => {
-    const timeout = setTimeout(async () => {
-      await glowControls.start({
-        opacity: [0.6, 1, 0.6],
-        scale: [1, 1.04, 1],
-        transition: { duration: 2.0, repeat: Infinity, ease: "easeInOut" },
-      });
-    }, 1200);
-    return () => clearTimeout(timeout);
-  }, [glowControls]);
-
+function HeartbeatPath() {
   return (
-    <motion.div
-      className="relative flex items-center justify-center"
-      initial={{ y: 220, scale: 0.2, opacity: 0, filter: "blur(28px)", rotate: -35 }}
-      animate={{ y: 0, scale: 1, opacity: 1, filter: "blur(0px)", rotate: -35 }}
-      transition={{
-        type: "spring",
-        stiffness: 80,
-        damping: 18,
-        delay: 0.2,
-      }}
+    <div
+      className="absolute flex items-center justify-center pointer-events-none"
+      style={{ width: 340, height: 170, top: "50%", left: "50%", transform: "translate(-50%, -50%)" }}
     >
-      {/* ── Outer Glow Halo ── */}
-      <motion.div
-        animate={glowControls}
-        initial={{ opacity: 0 }}
+      {/* EKG line — fades out once it has collapsed into the dot */}
+      <motion.svg
+        viewBox="0 0 200 100"
         className="absolute"
-        style={{
-          width: 280, height: 120,
-          borderRadius: 100,
-          background: "radial-gradient(ellipse, rgba(52,211,153,0.55) 0%, transparent 70%)",
-          filter: "blur(18px)",
-          transform: "rotate(0deg)",
-        }}
-      />
-
-      {/* ── Outer Glow Ring (second layer, deeper) ── */}
-      <motion.div
-        initial={{ opacity: 0, scale: 0.8 }}
-        animate={{ opacity: 0.3, scale: 1 }}
-        transition={{ delay: 1.0, duration: 0.6 }}
-        className="absolute"
-        style={{
-          width: 340, height: 150,
-          borderRadius: 100,
-          background: "radial-gradient(ellipse, rgba(13,148,136,0.35) 0%, transparent 65%)",
-          filter: "blur(30px)",
-        }}
-      />
-
-      {/* ── Capsule Body ── */}
-      <div
-        className="relative overflow-hidden"
-        style={{
-          width: 220, height: 96, borderRadius: 100,
-          boxShadow: [
-            "inset 0 -10px 30px rgba(0,0,0,0.5)",
-            "inset 0 10px 24px rgba(255,255,255,0.15)",
-            "0 0 80px rgba(52,211,153,0.7)",
-            "0 0 160px rgba(52,211,153,0.25)",
-            "0 30px 80px rgba(0,0,0,0.8)",
-          ].join(", "),
-        }}
+        style={{ width: 340, height: 170, overflow: "visible" }}
+        initial={{ opacity: 1, scaleX: 1 }}
+        animate={{ opacity: [1, 1, 0], scaleX: [1, 1, 0.04] }}
+        transition={{ duration: 0.35, delay: 1.2, times: [0, 0.4, 1], ease: "easeIn" }}
       >
-        {/* Left half — Pearl White */}
-        <div
-          className="absolute top-0 left-0 h-full"
+        <motion.path
+          d="M 0 50 H 70 L 80 50 L 88 33 L 98 64 L 108 12 L 120 88 L 130 50 L 140 50 H 200"
+          fill="none"
+          stroke={EMERALD}
+          strokeWidth={2.4}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          initial={{ pathLength: 0, opacity: 0 }}
+          animate={{ pathLength: 1, opacity: 1 }}
+          transition={{
+            pathLength: { duration: 1.2, ease: "easeInOut" },
+            opacity: { duration: 0.2 },
+          }}
           style={{
-            width: "50%",
-            background: "linear-gradient(160deg, #ffffff 0%, #dde6f0 40%, #bfcfe0 100%)",
+            filter:
+              "drop-shadow(0 0 6px rgba(52,211,153,0.95)) drop-shadow(0 0 18px rgba(52,211,153,0.55))",
           }}
         />
+      </motion.svg>
 
-        {/* Right half — Deep Emerald */}
-        <div
-          className="absolute top-0 right-0 h-full"
-          style={{
-            width: "50%",
-            background: "linear-gradient(200deg, #5eead4 0%, #34d399 35%, #059669 70%, #064e3b 100%)",
-          }}
-        />
-
-        {/* Center divider line */}
-        <div
-          className="absolute top-0 h-full"
-          style={{
-            left: "calc(50% - 1px)", width: 2,
-            background: "linear-gradient(to bottom, rgba(255,255,255,0.6), rgba(255,255,255,0.1), rgba(0,0,0,0.3))",
-          }}
-        />
-
-        {/* Top specular highlight */}
-        <div
-          className="absolute"
-          style={{
-            top: 10, left: 18,
-            width: 72, height: 22,
-            borderRadius: 20,
-            background: "linear-gradient(135deg, rgba(255,255,255,0.85) 0%, rgba(255,255,255,0) 100%)",
-            filter: "blur(2px)",
-          }}
-        />
-
-        {/* Right side specular highlight */}
-        <div
-          className="absolute"
-          style={{
-            top: 10, right: 12,
-            width: 36, height: 18,
-            borderRadius: 20,
-            background: "rgba(255,255,255,0.2)",
-            filter: "blur(2px)",
-          }}
-        />
-
-        {/* Inner depth rim */}
-        <div
-          className="absolute inset-0 rounded-full"
-          style={{
-            border: "1px solid rgba(255,255,255,0.12)",
-            boxShadow: "inset 0 0 20px rgba(0,0,0,0.25)",
-          }}
-        />
-      </div>
-
-      {/* ── Reflection on floor ── */}
+      {/* Glowing dot — arrives as the line collapses, then bursts into the aura */}
       <motion.div
-        initial={{ opacity: 0, scaleY: 0 }}
-        animate={{ opacity: 0.18, scaleY: 1 }}
-        transition={{ delay: 1.0, duration: 0.8 }}
-        className="absolute"
+        className="absolute rounded-full"
         style={{
-          bottom: -60, width: 220, height: 60,
-          borderRadius: 100,
-          background: "linear-gradient(to bottom, rgba(52,211,153,0.4) 0%, transparent 100%)",
-          filter: "blur(8px)",
-          transform: "rotate(0deg) scaleY(-0.6)",
-          transformOrigin: "top center",
+          width: 14,
+          height: 14,
+          background: "radial-gradient(circle, #ecfdf5 0%, #34d399 45%, #059669 100%)",
+          boxShadow: "0 0 22px rgba(52,211,153,0.95), 0 0 60px rgba(52,211,153,0.5)",
+        }}
+        initial={{ scale: 0, opacity: 0 }}
+        animate={{ scale: [0, 1, 1, 12], opacity: [0, 1, 1, 0] }}
+        transition={{
+          duration: 0.75,
+          delay: 1.25,
+          times: [0, 0.22, 0.45, 1],
+          ease: "easeOut",
         }}
       />
-    </motion.div>
+    </div>
   );
 }
 
@@ -205,143 +130,71 @@ export function SplashIntro() {
   return (
     <motion.div
       key="splash"
-      className="fixed inset-0 z-[9999] flex flex-col items-center justify-center overflow-hidden bg-black"
+      className="fixed inset-0 z-[9999] flex items-center justify-center overflow-hidden bg-black"
       initial={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
       animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
       exit={{
-        scale: 1.02,
+        scale: 1.1,
         opacity: 0,
-        filter: "blur(20px)",
-        transition: { duration: 0.75, ease: [0.4, 0, 0.2, 1] },
+        filter: "blur(24px)",
+        backdropFilter: "blur(40px)",
+        transition: { duration: 1.0, ease: [0.4, 0, 0.2, 1] },
       }}
     >
+      {/* ── Ambient breathing aura ── */}
+      <AmbientAura />
 
-      {/* ══════════════════════════════════════════ */}
-      {/* Studio Spotlights — Moving in background  */}
-      {/* ══════════════════════════════════════════ */}
-      <Spotlight
-        color="rgba(16, 90, 60, 0.7)"
-        size={700}
-        delay={0}
-        duration={8}
-        xRange={[-80, 80]}
-        yRange={[-60, 60]}
-      />
-      <Spotlight
-        color="rgba(52, 211, 153, 0.18)"
-        size={500}
-        delay={1.5}
-        duration={11}
-        xRange={[60, -60]}
-        yRange={[40, -40]}
-      />
-      <Spotlight
-        color="rgba(6, 78, 59, 0.5)"
-        size={400}
-        delay={0.5}
-        duration={7}
-        xRange={[-120, 120]}
-        yRange={[80, -80]}
-      />
+      {/* ── Fluid heartbeat path → dot → burst ── */}
+      <HeartbeatPath />
 
-      {/* Subtle scanline texture */}
-      <div
-        className="absolute inset-0 pointer-events-none opacity-[0.025]"
-        style={{
-          backgroundImage: "repeating-linear-gradient(0deg, rgba(255,255,255,0.5) 0px, transparent 1px, transparent 3px)",
-          backgroundSize: "100% 4px",
-        }}
-      />
+      {/* ── Premium Typography ── */}
+      <div className="relative z-10 flex flex-col items-center" dir="rtl">
+        <motion.h1
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 1.0, delay: 1.5, ease: "easeOut" }}
+          className="text-white select-none tracking-tight"
+          style={{
+            fontFamily: "'Cairo', sans-serif",
+            fontWeight: 800,
+            fontSize: "clamp(56px, 13vw, 96px)",
+            lineHeight: 1,
+            textShadow:
+              "0 0 60px rgba(52,211,153,0.45), 0 0 160px rgba(52,211,153,0.18), 0 4px 30px rgba(0,0,0,0.7)",
+          }}
+        >
+          دوائي
+        </motion.h1>
 
-      {/* ══════════════════════════════════════════ */}
-      {/* Main Stage                                 */}
-      {/* ══════════════════════════════════════════ */}
-      <div className="relative z-10 flex flex-col items-center" style={{ gap: "52px" }}>
-
-        {/* 3D Capsule */}
-        <Capsule3D />
-
-        {/* ── Typography ── */}
-        <div className="flex flex-col items-center" dir="rtl">
-
-          {/* اسم التطبيق */}
-          <motion.h1
-            initial={{ y: 32, opacity: 0, filter: "blur(8px)", scale: 0.88 }}
-            animate={{ y: 0, opacity: 1, filter: "blur(0px)", scale: 1 }}
-            transition={{
-              type: "spring",
-              stiffness: 140,
-              damping: 18,
-              delay: 1.0,
-            }}
-            className="font-black text-white select-none mb-6"
-            style={{
-              fontFamily: "'Cairo', sans-serif",
-              fontSize: "clamp(52px, 10vw, 88px)",
-              lineHeight: 1,
-              letterSpacing: "-0.02em",
-              textShadow: [
-                "0 0 80px rgba(52,211,153,0.5)",
-                "0 0 200px rgba(52,211,153,0.2)",
-                "0 4px 40px rgba(0,0,0,0.8)",
-              ].join(", "),
-            }}
-          >
-            دوائي
-          </motion.h1>
-
-          {/* English subtitle — thin, spaced, slate-400 */}
-          <motion.p
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 1.3, ease: "easeOut" }}
-            className="text-slate-400 uppercase select-none text-xs tracking-widest"
-            style={{
-              fontFamily: "'Segoe UI Light', 'Helvetica Neue', 'Inter', sans-serif",
-              fontWeight: 300,
-              letterSpacing: "0.45em",
-            }}
-          >
-            The Digital Pharmacy
-          </motion.p>
-
-          {/* Emerald accent line */}
-          <motion.div
-            initial={{ scaleX: 0, opacity: 0 }}
-            animate={{ scaleX: 1, opacity: 1 }}
-            transition={{ duration: 0.5, delay: 1.4, ease: [0.4, 0, 0.2, 1] }}
-            className="mt-4"
-            style={{
-              height: 1,
-              width: 100,
-              background: "linear-gradient(90deg, transparent, rgba(52,211,153,0.7), transparent)",
-              transformOrigin: "center",
-            }}
-          />
-        </div>
+        <motion.p
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, delay: 2.0, ease: "easeOut" }}
+          className="text-slate-400 uppercase select-none text-xs mt-5"
+          style={{
+            fontFamily: "'Helvetica Neue', 'Inter', sans-serif",
+            fontWeight: 300,
+            letterSpacing: "0.3em",
+          }}
+        >
+          The Digital Pharmacy
+        </motion.p>
       </div>
 
-      {/* ══════════════════════════════════════════ */}
-      {/* Developer Signature — Bottom              */}
-      {/* ══════════════════════════════════════════ */}
+      {/* ── Developer Signature — subtle luxury footprint ── */}
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        transition={{ duration: 0.8, delay: 1.8 }}
+        transition={{ duration: 0.8, delay: 2.2 }}
         className="absolute bottom-8 left-0 right-0 flex justify-center pointer-events-none"
       >
         <p
-          className="text-[10px] font-light select-none"
-          style={{
-            color: "rgba(100,116,139,0.45)",
-            fontFamily: "system-ui, 'SF Pro Text', sans-serif",
-            letterSpacing: "0.18em",
-          }}
+          className="text-slate-600 text-[10px] select-none"
+          style={{ letterSpacing: "0.2em" }}
         >
-          POWERED BY PROMPTIFY IQ
+          Powered by Promptify IQ
         </p>
       </motion.div>
-
     </motion.div>
   );
 }

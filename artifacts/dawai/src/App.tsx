@@ -63,8 +63,8 @@ export default function App() {
   const [showIntro, setShowIntro] = useState(true);
 
   useEffect(() => {
-    // تختفي الشاشة بعد 3.5 ثانية — يكفي لإتمام تسلسل الحركة
-    const timer = setTimeout(() => setShowIntro(false), 2800);
+    // يبدأ الخروج (Glass Wipe) عند 2.5 ثانية، ومدته 1 ثانية → الإجمالي 3.5 ثانية كحد أقصى
+    const timer = setTimeout(() => setShowIntro(false), 2500);
     return () => clearTimeout(timer); // Cleanup لمنع Memory Leak
   }, []);
 
