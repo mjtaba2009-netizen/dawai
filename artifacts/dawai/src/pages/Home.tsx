@@ -1,16 +1,67 @@
-import { useState } from 'react';
-import { motion } from 'framer-motion';
+import { useState, useContext, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { Search, Camera, MapPin, ChevronLeft } from 'lucide-react';
+import { Search, Camera, MapPin, ChevronLeft, Pill, Store } from 'lucide-react';
 import {
   useGetPopularMedications,
   useGetNearbyPharmacies,
 } from '@workspace/api-client-react';
+import { AuthContext } from '@/contexts/AuthContext';
+import { PrescriptionModal } from '@/components/PrescriptionModal';
 
+// ── Geolocation: حدود المحافظات العراقية ─────────────────────
+const IRAQ_GOV_BOUNDS = [
+  { name: 'بغداد',       latMin: 33.05, latMax: 33.65, lngMin: 44.10, lngMax: 44.65 },
+  { name: 'البصرة',      latMin: 29.50, latMax: 31.50, lngMin: 46.50, lngMax: 48.50 },
+  { name: 'نينوى',       latMin: 35.50, latMax: 37.40, lngMin: 41.50, lngMax: 43.80 },
+  { name: 'أربيل',       latMin: 35.70, latMax: 37.20, lngMin: 43.50, lngMax: 45.30 },
+  { name: 'السليمانية',  latMin: 34.50, latMax: 36.50, lngMin: 44.50, lngMax: 46.30 },
+  { name: 'دهوك',        latMin: 36.50, latMax: 37.40, lngMin: 42.50, lngMax: 44.00 },
+  { name: 'كركوك',       latMin: 34.50, latMax: 35.80, lngMin: 43.50, lngMax: 45.10 },
+  { name: 'النجف',       latMin: 29.50, latMax: 32.20, lngMin: 43.00, lngMax: 44.30 },
+  { name: 'كربلاء',      latMin: 32.20, latMax: 33.10, lngMin: 43.00, lngMax: 44.50 },
+  { name: 'بابل',        latMin: 32.00, latMax: 33.20, lngMin: 44.00, lngMax: 45.20 },
+  { name: 'ذي قار',      latMin: 30.50, latMax: 32.00, lngMin: 45.50, lngMax: 47.00 },
+  { name: 'ميسان',       latMin: 31.00, latMax: 32.50, lngMin: 46.50, lngMax: 48.00 },
+  { name: 'الأنبار',     latMin: 32.00, latMax: 34.50, lngMin: 38.00, lngMax: 44.00 },
+  { name: 'ديالى',       latMin: 33.50, latMax: 34.50, lngMin: 44.50, lngMax: 46.50 },
+  { name: 'صلاح الدين',  latMin: 33.50, latMax: 35.50, lngMin: 43.00, lngMax: 45.00 },
+  { name: 'المثنى',      latMin: 28.50, latMax: 31.50, lngMin: 43.50, lngMax: 47.00 },
+  { name: 'القادسية',    latMin: 31.50, latMax: 32.50, lngMin: 44.00, lngMax: 46.00 },
+  { name: 'واسط',        latMin: 32.00, latMax: 33.50, lngMin: 45.50, lngMax: 47.00 },
+];
+
+function detectGovernorate(lat: number, lng: number): string {
+  for (const g of IRAQ_GOV_BOUNDS) {
+    if (lat >= g.latMin && lat <= g.latMax && lng >= g.lngMin && lng <= g.lngMax)
+      return g.name;
+  }
+  return '';
+}
+
+// ── مكون Skeleton ─────────────────────────────────────────────
 function SkeletonCard({ className = '' }: { className?: string }) {
   return <div className={`animate-pulse bg-slate-100 rounded-2xl ${className}`} />;
 }
 
+// ── مكون الحالة الفارغة ───────────────────────────────────────
+function EmptyState({ emoji, title, sub }: { emoji: string; title: string; sub: string }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="flex flex-col items-center justify-center py-10 text-center"
+    >
+      <div className="w-16 h-16 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-center text-3xl mb-3 shadow-sm">
+        {emoji}
+      </div>
+      <p className="text-slate-700 font-bold text-sm mb-1">{title}</p>
+      <p className="text-slate-400 text-xs max-w-[200px] leading-relaxed">{sub}</p>
+    </motion.div>
+  );
+}
+
+// ── بطاقة الدواء ──────────────────────────────────────────────
 function MedicationCard({
   name, genericName, category, requiresPrescription, index,
 }: {
@@ -25,7 +76,7 @@ function MedicationCard({
       className="flex-shrink-0 w-36 bg-white rounded-2xl p-3 shadow-sm border border-slate-100"
     >
       <div className="w-full h-20 bg-gradient-to-br from-emerald-50 to-teal-100 rounded-xl mb-3 flex items-center justify-center">
-        <span className="text-3xl">💊</span>
+        <Pill className="w-8 h-8 text-emerald-500" />
       </div>
       <p className="text-slate-800 font-semibold text-sm leading-tight mb-1 truncate">{name}</p>
       <p className="text-slate-400 text-xs truncate">{genericName}</p>
@@ -43,6 +94,7 @@ function MedicationCard({
   );
 }
 
+// ── بطاقة الصيدلية ────────────────────────────────────────────
 function PharmacyCard({
   name, address, distance, isOpen, rating, index,
 }: {
@@ -57,7 +109,7 @@ function PharmacyCard({
       className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 flex items-center gap-3"
     >
       <div className="w-12 h-12 flex-shrink-0 bg-gradient-to-br from-emerald-100 to-teal-200 rounded-xl flex items-center justify-center">
-        <span className="text-xl">🏪</span>
+        <Store className="w-6 h-6 text-emerald-600" />
       </div>
       <div className="flex-1 min-w-0">
         <p className="font-semibold text-slate-800 truncate">{name}</p>
@@ -79,12 +131,32 @@ function PharmacyCard({
   );
 }
 
+// ═══════════════════════════════════════════════════════════════
 export function Home() {
   const [searchQuery, setSearchQuery] = useState('');
-  const navigate = useNavigate();
+  const [locationLabel, setLocationLabel] = useState('Gmunden');
+  const [locLoading, setLocLoading]       = useState(true);
+  const [showPrescription, setShowPrescription] = useState(false);
 
-  const { data: popularMeds,     isLoading: loadingMeds }      = useGetPopularMedications();
+  const navigate = useNavigate();
+  const auth     = useContext(AuthContext);
+
+  const { data: popularMeds,      isLoading: loadingMeds }       = useGetPopularMedications();
   const { data: nearbyPharmacies, isLoading: loadingPharmacies } = useGetNearbyPharmacies();
+
+  // كشف الموقع الجغرافي لعرض المحافظة الحقيقية
+  useEffect(() => {
+    if (!navigator.geolocation) { setLocLoading(false); return; }
+    navigator.geolocation.getCurrentPosition(
+      ({ coords }) => {
+        const gov = detectGovernorate(coords.latitude, coords.longitude);
+        setLocationLabel(gov || 'Gmunden');
+        setLocLoading(false);
+      },
+      () => setLocLoading(false),
+      { timeout: 6000, maximumAge: 300000 }
+    );
+  }, []);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -96,116 +168,185 @@ export function Home() {
   const categories = ['مسكنات', 'مضادات حيوية', 'فيتامينات', 'أمراض مزمنة'];
 
   return (
-    <div className="flex-1 flex flex-col bg-muted/20">
-      {/* رأس الصفحة */}
-      <div className="bg-gradient-to-br from-emerald-500 via-emerald-600 to-teal-600 px-5 pt-10 pb-8">
-        <div className="flex items-center gap-1.5 mb-4">
-          <MapPin className="w-3.5 h-3.5 text-emerald-200" />
-          <span className="text-emerald-100 text-xs">الرياض، حي العليا</span>
-        </div>
-        <div className="mb-6">
-          <h2 className="text-white text-2xl font-bold">مرحباً بك 👋</h2>
-          <p className="text-emerald-100 text-sm mt-1">ابحث عن دوائك في أقرب صيدلية</p>
+    <>
+      <div className="flex-1 flex flex-col bg-muted/20">
+        {/* ── رأس الصفحة ── */}
+        <div className="bg-gradient-to-br from-emerald-500 via-emerald-600 to-teal-600 px-5 pt-10 pb-8">
+          {/* الموقع الديناميكي */}
+          <div className="flex items-center gap-1.5 mb-4">
+            <MapPin className="w-3.5 h-3.5 text-emerald-200" />
+            <AnimatePresence mode="wait">
+              {locLoading ? (
+                <motion.span
+                  key="loading-loc"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: [0.4, 1, 0.4] }}
+                  transition={{ duration: 1.2, repeat: Infinity }}
+                  className="text-emerald-100 text-xs"
+                >
+                  جاري تحديد الموقع...
+                </motion.span>
+              ) : (
+                <motion.span
+                  key="location-label"
+                  initial={{ opacity: 0, y: -4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="text-emerald-100 text-xs font-medium"
+                >
+                  {locationLabel}
+                </motion.span>
+              )}
+            </AnimatePresence>
+          </div>
+
+          <div className="mb-6">
+            <h2 className="text-white text-2xl font-bold">
+              مرحباً{auth?.user?.name ? `، ${auth.user.name.split(' ')[0]}` : ''} 👋
+            </h2>
+            <p className="text-emerald-100 text-sm mt-1">ابحث عن دوائك في أقرب صيدلية</p>
+          </div>
+
+          {/* ── شريط البحث ── */}
+          <form onSubmit={handleSearch}>
+            <div className="bg-white/20 backdrop-blur-md border border-white/30 rounded-2xl overflow-hidden shadow-lg">
+              <div className="flex items-center px-4 h-14">
+                <Search className="w-5 h-5 text-white/70 flex-shrink-0" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="ابحث عن دواء..."
+                  className="flex-1 bg-transparent text-white placeholder-white/60 font-medium text-base outline-none px-3 text-right"
+                  data-testid="input-search"
+                />
+                {/* زر الكاميرا — يفتح نافذة رفع الوصفة */}
+                <motion.button
+                  type="button"
+                  whileTap={{ scale: 0.88 }}
+                  onClick={() => setShowPrescription(true)}
+                  className="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-xl bg-white/20 hover:bg-white/30 transition-colors"
+                  data-testid="button-camera"
+                >
+                  <Camera className="w-4 h-4 text-white" />
+                </motion.button>
+              </div>
+            </div>
+          </form>
         </div>
 
-        {/* شريط البحث */}
-        <form onSubmit={handleSearch}>
-          <div className="bg-white/20 backdrop-blur-md border border-white/30 rounded-2xl overflow-hidden shadow-lg">
-            <div className="flex items-center px-4 h-14">
-              <Search className="w-5 h-5 text-white/70 flex-shrink-0" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="ابحث عن دواء..."
-                className="flex-1 bg-transparent text-white placeholder-white/60 font-medium text-base outline-none px-3 text-right"
-                data-testid="input-search"
-              />
+        <div className="flex-1 px-4 pt-5 pb-4 space-y-6 overflow-y-auto">
+          {/* ── فئات الأدوية ── */}
+          <div>
+            <h3 className="text-slate-700 font-bold text-base mb-3">تصفح حسب الفئة</h3>
+            <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
+              {categories.map((cat, i) => (
+                <motion.button
+                  key={cat}
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: i * 0.07 }}
+                  whileTap={{ scale: 0.95 }}
+                  whileHover={{ scale: 1.03 }}
+                  onClick={() => navigate(`/search?q=${encodeURIComponent(cat)}`)}
+                  className="flex-shrink-0 px-4 py-2.5 rounded-xl bg-white border border-slate-100 text-slate-700 font-medium text-sm shadow-sm whitespace-nowrap"
+                >
+                  {cat}
+                </motion.button>
+              ))}
+            </div>
+          </div>
+
+          {/* ── الأدوية الشائعة ── */}
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-slate-700 font-bold text-base">الأدوية الشائعة</h3>
               <button
-                type="button"
-                className="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-xl bg-white/20 hover:bg-white/30 transition-colors"
+                className="text-emerald-600 text-sm font-medium"
+                onClick={() => navigate('/search')}
               >
-                <Camera className="w-4 h-4 text-white" />
+                عرض الكل
               </button>
             </div>
-          </div>
-        </form>
-      </div>
-
-      <div className="flex-1 px-4 pt-5 pb-4 space-y-6 overflow-y-auto">
-        {/* فئات الأدوية */}
-        <div>
-          <h3 className="text-slate-700 font-bold text-base mb-3">تصفح حسب الفئة</h3>
-          <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
-            {categories.map((cat, i) => (
-              <motion.button
-                key={cat}
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: i * 0.07 }}
-                whileTap={{ scale: 0.95 }}
-                whileHover={{ scale: 1.03 }}
-                onClick={() => navigate(`/search?q=${encodeURIComponent(cat)}`)}
-                className="flex-shrink-0 px-4 py-2.5 rounded-xl bg-white border border-slate-100 text-slate-700 font-medium text-sm shadow-sm whitespace-nowrap"
-              >
-                {cat}
-              </motion.button>
-            ))}
-          </div>
-        </div>
-
-        {/* الأدوية الشائعة */}
-        <div>
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-slate-700 font-bold text-base">الأدوية الشائعة</h3>
-            <button className="text-emerald-600 text-sm font-medium">عرض الكل</button>
-          </div>
-          <div className="flex gap-3 overflow-x-auto pb-2 no-scrollbar">
-            {loadingMeds
-              ? Array.from({ length: 4 }).map((_, i) => (
-                  <SkeletonCard key={i} className="w-36 h-36 flex-shrink-0" />
-                ))
-              : popularMeds?.map((med, i) => (
-                  <MedicationCard
-                    key={med.id}
-                    name={med.name}
-                    genericName={med.genericName}
-                    category={med.category}
-                    requiresPrescription={med.requiresPrescription ?? false}
-                    index={i}
-                  />
-                ))}
-          </div>
-        </div>
-
-        {/* الصيدليات القريبة */}
-        <div>
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-slate-700 font-bold text-base">الصيدليات القريبة</h3>
-            <div className="flex items-center gap-1 text-slate-400 text-xs">
-              <MapPin className="w-3 h-3" />
-              <span>العليا</span>
+            <div className="flex gap-3 overflow-x-auto pb-2 no-scrollbar">
+              {loadingMeds
+                ? Array.from({ length: 4 }).map((_, i) => (
+                    <SkeletonCard key={i} className="w-36 h-36 flex-shrink-0" />
+                  ))
+                : popularMeds && popularMeds.length > 0
+                  ? popularMeds.map((med, i) => (
+                      <MedicationCard
+                        key={med.id}
+                        name={med.name}
+                        genericName={med.genericName}
+                        category={med.category}
+                        requiresPrescription={med.requiresPrescription ?? false}
+                        index={i}
+                      />
+                    ))
+                  : (
+                      <div className="w-full">
+                        <EmptyState
+                          emoji="💊"
+                          title="لا توجد أدوية لعرضها حالياً"
+                          sub="سيتم إضافة الأدوية الشائعة قريباً"
+                        />
+                      </div>
+                    )
+              }
             </div>
           </div>
-          <div className="space-y-3">
-            {loadingPharmacies
-              ? Array.from({ length: 3 }).map((_, i) => (
-                  <SkeletonCard key={i} className="h-20 w-full" />
-                ))
-              : nearbyPharmacies?.map((pharmacy, i) => (
-                  <PharmacyCard
-                    key={pharmacy.id}
-                    name={pharmacy.name}
-                    address={pharmacy.address}
-                    distance={pharmacy.distance}
-                    isOpen={pharmacy.isOpen}
-                    rating={pharmacy.rating}
-                    index={i}
-                  />
-                ))}
+
+          {/* ── الصيدليات القريبة ── */}
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-slate-700 font-bold text-base">الصيدليات القريبة</h3>
+              {locationLabel && (
+                <div className="flex items-center gap-1 text-slate-400 text-xs">
+                  <MapPin className="w-3 h-3" />
+                  <span>{locationLabel}</span>
+                </div>
+              )}
+            </div>
+            <div className="space-y-3">
+              {loadingPharmacies
+                ? Array.from({ length: 3 }).map((_, i) => (
+                    <SkeletonCard key={i} className="h-20 w-full" />
+                  ))
+                : nearbyPharmacies && nearbyPharmacies.length > 0
+                  ? nearbyPharmacies.map((pharmacy, i) => (
+                      <PharmacyCard
+                        key={pharmacy.id}
+                        name={pharmacy.name}
+                        address={pharmacy.address}
+                        distance={pharmacy.distance}
+                        isOpen={pharmacy.isOpen}
+                        rating={pharmacy.rating}
+                        index={i}
+                      />
+                    ))
+                  : (
+                      <EmptyState
+                        emoji="🏪"
+                        title="لا توجد صيدليات لعرضها حالياً"
+                        sub="لم يتم تسجيل صيدليات في منطقتك بعد"
+                      />
+                    )
+              }
+            </div>
           </div>
         </div>
       </div>
-    </div>
+
+      {/* ── نافذة رفع الوصفة الطبية ── */}
+      <AnimatePresence>
+        {showPrescription && (
+          <PrescriptionModal
+            medicationName="وصفة طبية"
+            onConfirm={() => setShowPrescription(false)}
+            onClose={() => setShowPrescription(false)}
+          />
+        )}
+      </AnimatePresence>
+    </>
   );
 }
