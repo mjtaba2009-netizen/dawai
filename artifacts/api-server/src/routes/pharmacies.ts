@@ -102,6 +102,13 @@ const AddCustomMedicationBody = z.object({
   price: z.number().positive(),
   quantity: z.number().int().min(0),
   requiresPrescription: z.boolean().default(false),
+  category: z.string().min(1).default("أخرى"),
+  // صورة الدواء كـ data URL (base64) — نرفض SVG وغير الصور ونحدّ الحجم لتفادي تضخّم قاعدة البيانات
+  imageUrl: z
+    .string()
+    .regex(/^data:image\/(png|jpe?g|webp|gif);base64,/, "صيغة صورة غير مدعومة")
+    .max(2_000_000, "حجم الصورة كبير جداً")
+    .optional(),
 });
 
 const UpdateInventoryBody = z.object({
@@ -119,7 +126,7 @@ router.post("/pharmacy/inventory/add-custom", async (req, res): Promise<void> =>
   const parsed = AddCustomMedicationBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
-  const { medicationName, price, quantity, requiresPrescription } = parsed.data;
+  const { medicationName, price, quantity, requiresPrescription, category, imageUrl } = parsed.data;
 
   // البحث عن دواء بنفس الاسم أولاً (case-insensitive)
   const { ilike } = await import("drizzle-orm");
@@ -139,8 +146,9 @@ router.post("/pharmacy/inventory/add-custom", async (req, res): Promise<void> =>
       .values({
         name: medicationName,
         genericName: medicationName,
-        category: "أخرى",
+        category,
         requiresPrescription,
+        imageUrl,
       })
       .returning();
     medicationId = newMed.id;
@@ -174,6 +182,7 @@ router.get("/pharmacy/inventory", async (req, res): Promise<void> => {
     medication: {
       id: row.med.id, name: row.med.name, genericName: row.med.genericName,
       category: row.med.category, requiresPrescription: row.med.requiresPrescription,
+      imageUrl: row.med.imageUrl ?? null,
     },
   })));
 });

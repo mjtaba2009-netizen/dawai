@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowRight, MapPin, MessageCircle, ShoppingBag, Star } from 'lucide-react';
-import { useSearchMedications, useCreateOrder, getGetOrdersQueryKey } from '@workspace/api-client-react';
+import { useSearchMedications, useCreateOrder, getGetOrdersQueryKey, getSearchMedicationsQueryKey } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import { PrescriptionModal } from '@/components/PrescriptionModal';
@@ -146,7 +146,7 @@ export function Search() {
 
   const { data, isLoading } = useSearchMedications(
     { q },
-    { query: { enabled: !!q } }
+    { query: { enabled: !!q, queryKey: getSearchMedicationsQueryKey({ q }) } }
   );
 
   return (
@@ -225,8 +225,8 @@ export function Search() {
                     address={hit.pharmacy.address}
                     distance={hit.pharmacy.distance}
                     isOpen={hit.pharmacy.isOpen}
-                    rating={hit.pharmacy.rating}
-                    whatsapp={hit.pharmacy.whatsapp}
+                    rating={hit.pharmacy.rating ?? null}
+                    whatsapp={hit.pharmacy.whatsapp ?? null}
                     price={hit.price}
                     quantity={hit.quantity}
                     index={i}

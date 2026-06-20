@@ -339,7 +339,7 @@ export function OrderAutomationProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    const branch = invResult.data?.branch ?? "Gmunden";
+    const branch = invResult.data?.branch ?? "البصرة";
 
     // 4️⃣ POST /api/notifications/whatsapp — إشعار المريض
     dispatch({ type: "SET_STEP", orderId, step: "whatsapp-alert" });

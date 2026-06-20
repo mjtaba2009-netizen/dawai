@@ -2,7 +2,7 @@
  * Mock Database — دوائي Automation System
  * ──────────────────────────────────────────────────────────────
  * قاعدة بيانات وهمية في الذاكرة (In-Memory) للمحاكاة والتطوير.
- * الفرع الافتراضي الأول: Gmunden
+ * الفرع الافتراضي الأول: البصرة
  *
  * ملاحظات:
  *  - لا يوجد أي ارتباط بـ Facebook — التواصل عبر TikTok و Instagram فقط
@@ -66,17 +66,17 @@ export interface MockWhatsAppLog {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// الصيدليات — Gmunden كفرع افتراضي
+// الصيدليات — البصرة كفرع افتراضي
 // ═══════════════════════════════════════════════════════════════
 export const pharmacies: MockPharmacy[] = [
   {
     id: 1,
-    name: "صيدلية دوائي — فرع غموندن",
-    branch: "Gmunden",
-    address: "Rathausplatz 1, 4810 Gmunden, Austria",
-    phone: "+43 7612 12345",
-    tiktok: "https://www.tiktok.com/@dawai.gmunden",
-    instagram: "https://www.instagram.com/dawai.gmunden",
+    name: "صيدلية دوائي — فرع البصرة",
+    branch: "البصرة",
+    address: "شارع الكورنيش، البصرة، العراق",
+    phone: "+964 770 123 4567",
+    tiktok: "https://www.tiktok.com/@dawai.basrah",
+    instagram: "https://www.instagram.com/dawai.basrah",
     isDefault: true,
     isActive: true,
   },
@@ -130,7 +130,7 @@ export const medications: MockMedication[] = [
 ];
 
 // ═══════════════════════════════════════════════════════════════
-// المخزون الافتراضي — فرع Gmunden (pharmacyId: 1)
+// المخزون الافتراضي — فرع البصرة (pharmacyId: 1)
 // ═══════════════════════════════════════════════════════════════
 export const inventory: MockInventoryItem[] = [
   { id: 1,  pharmacyId: 1, medicationId: 1, price: 5.50,  quantity: 120 },

@@ -1,10 +1,11 @@
-import React, { useContext, useState, useEffect } from 'react';
+import { useContext, useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AnimatePresence } from 'framer-motion';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { AuthContext, AuthProvider } from '@/contexts/AuthContext';
+import { CartProvider } from '@/contexts/CartContext';
 import { OrderAutomationProvider } from '@/contexts/OrderAutomationContext';
 import { OrderAutomationManager } from '@/components/OrderAutomationManager';
 import { SplashIntro } from '@/components/SplashIntro';
@@ -16,6 +17,7 @@ import { Login } from '@/pages/Login';
 import { Home } from '@/pages/Home';
 import { Search } from '@/pages/Search';
 import { Orders } from '@/pages/Orders';
+import { Cart } from '@/pages/Cart';
 import { Notifications } from '@/pages/Notifications';
 import { Account } from '@/pages/Account';
 import { PharmacyDashboard } from '@/pages/PharmacyDashboard';
@@ -48,6 +50,7 @@ const AppRoutes = () => {
       <Route path="/home"          element={<Home />} />
       <Route path="/search"        element={<Search />} />
       <Route path="/orders"        element={<Orders />} />
+      <Route path="/cart"          element={<Cart />} />
       <Route path="/notifications" element={<Notifications />} />
       <Route path="/account"       element={<Account />} />
 
@@ -78,25 +81,27 @@ export default function App() {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <AuthProvider>
-          <OrderAutomationProvider>
-            <BrowserRouter basename={import.meta.env.BASE_URL}>
+          <CartProvider>
+            <OrderAutomationProvider>
+              <BrowserRouter basename={import.meta.env.BASE_URL}>
 
-              {/* ── شاشة الترحيب — خارج Layout لتغطي كامل الشاشة ── */}
-              <AnimatePresence mode="wait">
-                {showIntro && <SplashIntro key="splash" />}
-              </AnimatePresence>
+                {/* ── شاشة الترحيب — خارج Layout لتغطي كامل الشاشة ── */}
+                <AnimatePresence mode="wait">
+                  {showIntro && <SplashIntro key="splash" />}
+                </AnimatePresence>
 
-              {/* ── المحتوى الرئيسي — يُحمَّل في الخلفية أثناء الـ Splash ── */}
-              <Layout>
-                <AppRoutes />
-              </Layout>
+                {/* ── المحتوى الرئيسي — يُحمَّل في الخلفية أثناء الـ Splash ── */}
+                <Layout>
+                  <AppRoutes />
+                </Layout>
 
-              {/* لوحة الأتمتة العائمة */}
-              <OrderAutomationManager />
-              <Toaster />
+                {/* لوحة الأتمتة العائمة */}
+                <OrderAutomationManager />
+                <Toaster />
 
-            </BrowserRouter>
-          </OrderAutomationProvider>
+              </BrowserRouter>
+            </OrderAutomationProvider>
+          </CartProvider>
         </AuthProvider>
       </TooltipProvider>
     </QueryClientProvider>

@@ -64,7 +64,7 @@ router.post("/inventory/sync", async (req, res): Promise<void> => {
   const { orderId, pharmacyId, medicationId, quantity, medicationName, patientPhone, totalPrice } = parsed.data;
 
   // جلب بيانات الصيدلية
-  const pharmacy = getPharmacy(pharmacyId) ?? pharmacies[0]; // Gmunden افتراضياً
+  const pharmacy = getPharmacy(pharmacyId) ?? pharmacies[0]; // البصرة افتراضياً
   const branchName = pharmacy.branch;
 
   // خصم من Mock DB
@@ -138,7 +138,7 @@ const WhatsAppSchema = z.object({
   totalPrice:    z.number(),
   pharmacyName:  z.string().min(1),
   orderId:       z.number().int().positive(),
-  branch:        z.string().optional().default("Gmunden"),
+  branch:        z.string().optional().default("البصرة"),
 });
 
 router.post("/notifications/whatsapp", async (req, res): Promise<void> => {
@@ -164,7 +164,7 @@ router.post("/notifications/whatsapp", async (req, res): Promise<void> => {
     `🏪 الصيدلية: ${pharmacyName} — فرع ${branch}`,
     `💰 السعر: ${totalPrice.toFixed(2)} IQD`,
     `✅ يُرجى الحضور خلال ساعتين لاستلام دوائك.`,
-    `📍 تابعنا: TikTok & Instagram @dawai.${branch.toLowerCase()}`,
+    `📍 تابعنا: TikTok & Instagram @dawai.basrah`,
   ].join("\n");
 
   // ─── طباعة واضحة في Console ──────────────────────────────

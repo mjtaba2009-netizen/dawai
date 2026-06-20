@@ -7,6 +7,7 @@
  */
 
 export * from './authResponse';
+export * from './catalogItem';
 export * from './getNearbyPharmaciesParams';
 export * from './healthStatus';
 export * from './loginInput';

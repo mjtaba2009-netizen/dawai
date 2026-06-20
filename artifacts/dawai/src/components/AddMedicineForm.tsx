@@ -1,6 +1,21 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Pill, DollarSign, Hash, ShieldCheck } from 'lucide-react';
+import { X, Pill, DollarSign, Hash, ShieldCheck, Tag, ImagePlus, Trash2 } from 'lucide-react';
+
+// فئات الأدوية المتاحة
+const CATEGORIES = [
+  'مسكنات',
+  'مضادات حيوية',
+  'فيتامينات',
+  'أمراض مزمنة',
+  'العناية والتجميل',
+  'الأم والطفل',
+  'أخرى',
+] as const;
+
+// أنواع الصور المسموحة (بدون SVG لأسباب أمنية) + الحد الأقصى للحجم
+const ALLOWED_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/gif'];
+const MAX_IMAGE_BYTES = 1.5 * 1024 * 1024; // ~1.5MB
 
 interface AddMedicineFormProps {
   onAdd: (data: {
@@ -8,6 +23,8 @@ interface AddMedicineFormProps {
     price: number;
     quantity: number;
     requiresPrescription: boolean;
+    category: string;
+    imageUrl?: string;
   }) => Promise<void>;
   onClose: () => void;
 }
@@ -48,7 +65,32 @@ export function AddMedicineForm({ onAdd, onClose }: AddMedicineFormProps) {
   const [price, setPrice] = useState('');
   const [quantity, setQuantity] = useState('');
   const [requiresPrescription, setRequiresPrescription] = useState(false);
+  const [category, setCategory] = useState<string>('أخرى');
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [imageError, setImageError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // نسمح بإعادة اختيار نفس الملف
+    if (!file) return;
+
+    if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
+      setImageError('صيغة غير مدعومة — استخدم PNG أو JPG أو WEBP أو GIF');
+      return;
+    }
+    if (file.size > MAX_IMAGE_BYTES) {
+      setImageError('حجم الصورة كبير جداً (الحد الأقصى 1.5 ميجابايت)');
+      return;
+    }
+
+    setImageError(null);
+    const reader = new FileReader();
+    reader.onload = () => setImageUrl(reader.result as string);
+    reader.onerror = () => setImageError('تعذّر قراءة الصورة');
+    reader.readAsDataURL(file);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -61,6 +103,8 @@ export function AddMedicineForm({ onAdd, onClose }: AddMedicineFormProps) {
         price: parseFloat(price),
         quantity: parseInt(quantity, 10),
         requiresPrescription,
+        category,
+        imageUrl: imageUrl ?? undefined,
       });
       onClose();
     } finally {
@@ -115,7 +159,7 @@ export function AddMedicineForm({ onAdd, onClose }: AddMedicineFormProps) {
         </div>
 
         {/* النموذج */}
-        <form onSubmit={handleSubmit} className="px-5 py-5 space-y-4">
+        <form onSubmit={handleSubmit} className="px-5 py-5 space-y-4 max-h-[72vh] overflow-y-auto">
 
           {/* اسم الدواء */}
           <div className="space-y-1.5">
@@ -132,6 +176,24 @@ export function AddMedicineForm({ onAdd, onClose }: AddMedicineFormProps) {
               className={inputClass}
               data-testid="input-medication-name"
             />
+          </div>
+
+          {/* الفئة */}
+          <div className="space-y-1.5">
+            <label className="flex items-center gap-1.5 text-sm font-semibold text-slate-700">
+              <Tag className="w-3.5 h-3.5 text-slate-400" />
+              الفئة <span className="text-red-400">*</span>
+            </label>
+            <select
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              className={`${inputClass} appearance-none cursor-pointer`}
+              data-testid="select-category"
+            >
+              {CATEGORIES.map((c) => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
@@ -172,6 +234,73 @@ export function AddMedicineForm({ onAdd, onClose }: AddMedicineFormProps) {
                 data-testid="input-quantity"
               />
             </div>
+          </div>
+
+          {/* صورة الدواء (اختياري) */}
+          <div className="space-y-1.5">
+            <label className="flex items-center gap-1.5 text-sm font-semibold text-slate-700">
+              <ImagePlus className="w-3.5 h-3.5 text-slate-400" />
+              صورة الدواء <span className="text-slate-400 font-normal">(اختياري)</span>
+            </label>
+
+            {imageUrl ? (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.94 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ type: 'spring', damping: 20, stiffness: 350 }}
+                className="relative rounded-2xl overflow-hidden border border-emerald-400/50 shadow-[0_4px_16px_rgb(0,0,0,0.06)]"
+              >
+                <img src={imageUrl} alt="معاينة الدواء" className="w-full h-36 object-cover" />
+                <button
+                  type="button"
+                  onClick={() => setImageUrl(null)}
+                  className="absolute top-2 left-2 w-8 h-8 bg-red-500/90 backdrop-blur-sm rounded-xl flex items-center justify-center"
+                  data-testid="button-remove-medicine-image"
+                >
+                  <Trash2 className="w-4 h-4 text-white" />
+                </button>
+              </motion.div>
+            ) : (
+              <motion.button
+                type="button"
+                whileTap={{ scale: 0.98 }}
+                transition={{ type: 'spring', damping: 20, stiffness: 400 }}
+                onClick={() => fileInputRef.current?.click()}
+                className="w-full h-28 rounded-2xl flex flex-col items-center justify-center gap-2 text-slate-500
+                  bg-white/50 backdrop-blur-md
+                  border border-white/60 border-dashed
+                  hover:border-emerald-400/70 hover:text-emerald-600
+                  shadow-[0_4px_16px_rgb(0,0,0,0.05)]
+                  transition-colors"
+                data-testid="button-upload-medicine-image"
+              >
+                <ImagePlus className="w-6 h-6" />
+                <span className="text-xs font-semibold">رفع صورة للدواء</span>
+                <span className="text-[10px] text-slate-400">PNG · JPG · WEBP · GIF — حتى 1.5MB</span>
+              </motion.button>
+            )}
+
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/png,image/jpeg,image/webp,image/gif"
+              className="hidden"
+              onChange={handleFileChange}
+              data-testid="input-medicine-image"
+            />
+
+            <AnimatePresence>
+              {imageError && (
+                <motion.p
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="text-xs text-red-600 leading-snug"
+                >
+                  {imageError}
+                </motion.p>
+              )}
+            </AnimatePresence>
           </div>
 
           {/* تبديل وصفة طبية */}

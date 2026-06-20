@@ -123,6 +123,21 @@ paths:
                 items:
                   $ref: "#/components/schemas/Medication"
 
+  /medications/available:
+    get:
+      operationId: getAvailableMedications
+      tags: [medications]
+      summary: Get all in-stock medications across pharmacies (patient catalog)
+      responses:
+        "200":
+          description: Available medications catalog
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CatalogItem"
+
   /medications/{id}:
     get:
       operationId: getMedication
@@ -391,6 +406,34 @@ components:
           description: Available stock
         medication:
           $ref: "#/components/schemas/Medication"
+
+    CatalogItem:
+      type: object
+      required: [id, medicationId, pharmacyId, pharmacyName, name, genericName, category, requiresPrescription, price, quantity]
+      properties:
+        id:
+          type: integer
+          description: Pharmacy medication (inventory) id
+        medicationId:
+          type: integer
+        pharmacyId:
+          type: integer
+        pharmacyName:
+          type: string
+        name:
+          type: string
+        genericName:
+          type: string
+        category:
+          type: string
+        requiresPrescription:
+          type: boolean
+        imageUrl:
+          type: ["string", "null"]
+        price:
+          type: number
+        quantity:
+          type: integer
 
     Pharmacy:
       type: object

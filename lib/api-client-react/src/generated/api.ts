@@ -21,6 +21,7 @@ import type {
 
 import type {
   AuthResponse,
+  CatalogItem,
   GetNearbyPharmaciesParams,
   HealthStatus,
   LoginInput,
@@ -415,6 +416,83 @@ export function useGetPopularMedications<TData = Awaited<ReturnType<typeof getPo
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetPopularMedicationsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getGetAvailableMedicationsUrl = () => {
+
+
+
+
+  return `/api/medications/available`
+}
+
+/**
+ * @summary Get all in-stock medications across pharmacies (patient catalog)
+ */
+export const getAvailableMedications = async ( options?: RequestInit): Promise<CatalogItem[]> => {
+
+  return customFetch<CatalogItem[]>(getGetAvailableMedicationsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetAvailableMedicationsQueryKey = () => {
+    return [
+    `/api/medications/available`
+    ] as const;
+    }
+
+
+export const getGetAvailableMedicationsQueryOptions = <TData = Awaited<ReturnType<typeof getAvailableMedications>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAvailableMedications>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetAvailableMedicationsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getAvailableMedications>>> = ({ signal }) => getAvailableMedications({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getAvailableMedications>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetAvailableMedicationsQueryResult = NonNullable<Awaited<ReturnType<typeof getAvailableMedications>>>
+export type GetAvailableMedicationsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get all in-stock medications across pharmacies (patient catalog)
+ */
+
+export function useGetAvailableMedications<TData = Awaited<ReturnType<typeof getAvailableMedications>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAvailableMedications>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetAvailableMedicationsQueryOptions(options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

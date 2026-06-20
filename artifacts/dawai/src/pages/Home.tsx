@@ -2,9 +2,9 @@ import { useState, useContext, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { Search, Camera, MapPin, ChevronLeft, Pill, Store, ShoppingCart, X, Upload } from 'lucide-react';
-import { useGetNearbyPharmacies } from '@workspace/api-client-react';
+import { useGetNearbyPharmacies, useGetAvailableMedications, type CatalogItem } from '@workspace/api-client-react';
 import { AuthContext } from '@/contexts/AuthContext';
-import { PrescriptionModal } from '@/components/PrescriptionModal';
+import { useCart } from '@/contexts/CartContext';
 import { useToast } from '@/hooks/use-toast';
 
 // ── Geolocation: حدود المحافظات العراقية ─────────────────────
@@ -61,10 +61,10 @@ function EmptyState({ emoji, title, sub }: { emoji: string; title: string; sub: 
 
 // ── بطاقة الدواء ──────────────────────────────────────────────
 function MedicationCard({
-  name, genericName, category, requiresPrescription, index, onOrder,
+  name, genericName, category, requiresPrescription, price, index, onOrder,
 }: {
   name: string; genericName: string; category: string;
-  requiresPrescription: boolean; index: number;
+  requiresPrescription: boolean; price: number; index: number;
   onOrder: () => void;
 }) {
   return (
@@ -90,19 +90,19 @@ function MedicationCard({
         )}
       </div>
 
-      {/* زر الطلب */}
+      {/* السعر */}
+      <p className="text-emerald-700 font-bold text-sm mb-2">{price.toFixed(2)} IQD</p>
+
+      {/* زر الإضافة للسلة */}
       <motion.button
         whileTap={{ scale: 0.93 }}
         onClick={onOrder}
-        className={`mt-auto w-full h-8 rounded-xl text-xs font-bold flex items-center justify-center gap-1
-          ${requiresPrescription
-            ? 'bg-amber-500 text-white shadow-[0_2px_8px_rgba(245,158,11,0.35)]'
-            : 'bg-emerald-500 text-white shadow-[0_2px_8px_rgba(16,185,129,0.35)]'
-          }`}
+        className="mt-auto w-full h-8 rounded-xl text-xs font-bold flex items-center justify-center gap-1
+          bg-emerald-500 text-white shadow-[0_2px_8px_rgba(16,185,129,0.35)]"
         data-testid={`button-order-${name}`}
       >
         <ShoppingCart className="w-3 h-3" />
-        {requiresPrescription ? 'طلب بوصفة' : 'طلب'}
+        أضف للسلة
       </motion.button>
     </motion.div>
   );
@@ -240,22 +240,19 @@ function VisualSearchModal({
 // ═══════════════════════════════════════════════════════════════
 export function Home() {
   const [searchQuery,      setSearchQuery]      = useState('');
-  const [locationLabel,    setLocationLabel]    = useState('Gmunden');
+  const [locationLabel,    setLocationLabel]    = useState('البصرة');
   const [locLoading,       setLocLoading]       = useState(true);
-  // الدواء الذي فعَّل نافذة الوصفة (null = مغلق)
-  const [prescriptionMed,  setPrescriptionMed]  = useState<string | null>(null);
   // نافذة البحث البصري
   const [showVisualSearch, setShowVisualSearch] = useState(false);
 
   const navigate = useNavigate();
   const auth     = useContext(AuthContext);
+  const cart     = useCart();
   const { toast } = useToast();
 
-  // الأدوية الشائعة — قائمة فارغة (لا بيانات تجريبية) → تظهر الحالة الفارغة حتى تُضاف أدوية حقيقية
-  const popularMeds: Array<{
-    id: number; name: string; genericName: string; category: string; requiresPrescription?: boolean;
-  }> = [];
-  const loadingMeds = false;
+  // الأدوية المتاحة للطلب — من مخزون الصيدليات (الكمية > 0)
+  const { data: catalog, isLoading: loadingMeds } = useGetAvailableMedications();
+  const popularMeds = catalog ?? [];
 
   const { data: nearbyPharmacies, isLoading: loadingPharmacies } = useGetNearbyPharmacies();
 
@@ -265,7 +262,7 @@ export function Home() {
     navigator.geolocation.getCurrentPosition(
       ({ coords }) => {
         const gov = detectGovernorate(coords.latitude, coords.longitude);
-        setLocationLabel(gov || 'Gmunden');
+        setLocationLabel(gov || 'البصرة');
         setLocLoading(false);
       },
       () => setLocLoading(false),
@@ -291,19 +288,19 @@ export function Home() {
     });
   };
 
-  // ── منطق الطلب: وصفة أم مباشر ──────────────────────────────
-  const handleOrder = (medName: string, requiresPrescription: boolean) => {
-    if (requiresPrescription) {
-      // ← افتح نافذة رفع الوصفة للدواء المحدد
-      setPrescriptionMed(medName);
-    } else {
-      // ← أضف للسلة مباشرةً
-      toast({
-        title: '✅ تمت إضافة الطلب',
-        description: `${medName} في طريقه إليك`,
-        duration: 3000,
-      });
-    }
+  // ── إضافة الدواء إلى السلة (بوابة الوصفة تُطبَّق عند إتمام الطلب) ──
+  const handleAddToCart = (item: CatalogItem) => {
+    cart.addItem({
+      id: item.id,
+      medicationId: item.medicationId,
+      pharmacyId: item.pharmacyId,
+      pharmacyName: item.pharmacyName,
+      name: item.name,
+      price: item.price,
+      requiresPrescription: item.requiresPrescription,
+      imageUrl: item.imageUrl ?? null,
+    });
+    toast({ title: '✅ أُضيف إلى السلة', description: item.name, duration: 2000 });
   };
 
   const categories = ['مسكنات', 'مضادات حيوية', 'فيتامينات', 'أمراض مزمنة'];
@@ -421,11 +418,10 @@ export function Home() {
                         name={med.name}
                         genericName={med.genericName}
                         category={med.category}
-                        requiresPrescription={med.requiresPrescription ?? false}
+                        requiresPrescription={med.requiresPrescription}
+                        price={med.price}
                         index={i}
-                        onOrder={() =>
-                          handleOrder(med.name, med.requiresPrescription ?? false)
-                        }
+                        onOrder={() => handleAddToCart(med)}
                       />
                     ))
                   : (
@@ -465,7 +461,7 @@ export function Home() {
                         address={pharmacy.address}
                         distance={pharmacy.distance}
                         isOpen={pharmacy.isOpen}
-                        rating={pharmacy.rating}
+                        rating={pharmacy.rating ?? null}
                         index={i}
                       />
                     ))
@@ -481,17 +477,6 @@ export function Home() {
           </div>
         </div>
       </div>
-
-      {/* ── نافذة الوصفة الطبية — تُفتح فقط عند الطلب من بطاقة دواء يستلزم وصفة ── */}
-      <AnimatePresence>
-        {prescriptionMed !== null && (
-          <PrescriptionModal
-            medicationName={prescriptionMed}
-            onConfirm={() => setPrescriptionMed(null)}
-            onClose={() => setPrescriptionMed(null)}
-          />
-        )}
-      </AnimatePresence>
 
       {/* ── نافذة البحث البصري — كاميرا/معرض ── */}
       <AnimatePresence>

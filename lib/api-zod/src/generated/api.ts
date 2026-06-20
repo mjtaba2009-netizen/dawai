@@ -103,6 +103,25 @@ export const GetPopularMedicationsResponse = zod.array(GetPopularMedicationsResp
 
 
 /**
+ * @summary Get all in-stock medications across pharmacies (patient catalog)
+ */
+export const GetAvailableMedicationsResponseItem = zod.object({
+  "id": zod.number().describe('Pharmacy medication (inventory) id'),
+  "medicationId": zod.number(),
+  "pharmacyId": zod.number(),
+  "pharmacyName": zod.string(),
+  "name": zod.string(),
+  "genericName": zod.string(),
+  "category": zod.string(),
+  "requiresPrescription": zod.boolean(),
+  "imageUrl": zod.string().nullish(),
+  "price": zod.number(),
+  "quantity": zod.number()
+})
+export const GetAvailableMedicationsResponse = zod.array(GetAvailableMedicationsResponseItem)
+
+
+/**
  * @summary Get medication details
  */
 export const GetMedicationParams = zod.object({

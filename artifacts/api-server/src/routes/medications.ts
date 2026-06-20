@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { db, medicationsTable, pharmaciesTable, pharmacyMedicationsTable } from "@workspace/db";
-import { eq, ilike, and } from "drizzle-orm";
+import { eq, ilike, and, gt } from "drizzle-orm";
 import { SearchMedicationsQueryParams, GetMedicationParams } from "@workspace/api-zod";
 
 const router: IRouter = Router();
@@ -90,6 +90,33 @@ router.get("/medications/popular", async (_req, res): Promise<void> => {
       description: m.description ?? null,
       requiresPrescription: m.requiresPrescription,
       imageUrl: m.imageUrl ?? null,
+    }))
+  );
+});
+
+// كتالوج الأدوية المتوفرة فعلياً (كمية > 0) عبر كل الصيدليات — لعرضها للمريض وإضافتها للسلة
+router.get("/medications/available", async (_req, res): Promise<void> => {
+  const rows = await db
+    .select({ pm: pharmacyMedicationsTable, med: medicationsTable, ph: pharmaciesTable })
+    .from(pharmacyMedicationsTable)
+    .innerJoin(medicationsTable, eq(pharmacyMedicationsTable.medicationId, medicationsTable.id))
+    .innerJoin(pharmaciesTable, eq(pharmacyMedicationsTable.pharmacyId, pharmaciesTable.id))
+    .where(gt(pharmacyMedicationsTable.quantity, 0))
+    .orderBy(pharmaciesTable.distance);
+
+  res.json(
+    rows.map((r) => ({
+      id: r.pm.id,
+      medicationId: r.pm.medicationId,
+      pharmacyId: r.pm.pharmacyId,
+      pharmacyName: r.ph.name,
+      name: r.med.name,
+      genericName: r.med.genericName,
+      category: r.med.category,
+      requiresPrescription: r.med.requiresPrescription,
+      imageUrl: r.med.imageUrl ?? null,
+      price: r.pm.price,
+      quantity: r.pm.quantity,
     }))
   );
 });

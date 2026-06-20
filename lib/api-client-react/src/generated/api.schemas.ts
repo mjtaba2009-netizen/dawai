@@ -58,6 +58,22 @@ export interface PharmacyMedication {
   medication: Medication;
 }
 
+export interface CatalogItem {
+  /** Pharmacy medication (inventory) id */
+  id: number;
+  medicationId: number;
+  pharmacyId: number;
+  pharmacyName: string;
+  name: string;
+  genericName: string;
+  category: string;
+  requiresPrescription: boolean;
+  /** @nullable */
+  imageUrl?: string | null;
+  price: number;
+  quantity: number;
+}
+
 export interface Pharmacy {
   id: number;
   name: string;
