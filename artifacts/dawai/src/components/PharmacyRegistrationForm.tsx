@@ -4,7 +4,7 @@
  * Stack: React + Tailwind CSS + Framer Motion
  * Design: Dawai Emerald Glassmorphism — Mobile-first RTL
  */
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback, useEffect, type ChangeEvent } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
 // ═══════════════════════════════════════════════════════════════
@@ -266,6 +266,85 @@ function MapSection({ onLocate }: { onLocate: () => void }) {
 }
 
 // ═══════════════════════════════════════════════════════════════
+// Logo Upload — دائرة رفع شعار الصيدلية
+// ═══════════════════════════════════════════════════════════════
+function LogoUpload({
+  preview, onChange,
+}: { preview: string | null; onChange: (f: File) => void }) {
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    onChange(file);
+  };
+
+  return (
+    <div className="flex flex-col items-center gap-2 mb-5">
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={handleChange}
+      />
+      <motion.button
+        type="button"
+        whileTap={{ scale: 0.93 }}
+        whileHover={{ scale: 1.04 }}
+        onClick={() => inputRef.current?.click()}
+        className="relative w-24 h-24 rounded-full overflow-hidden border-4 border-white shadow-lg focus:outline-none"
+        style={{
+          background: preview
+            ? undefined
+            : "linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%)",
+        }}
+      >
+        {preview ? (
+          <img
+            src={preview}
+            alt="شعار الصيدلية"
+            className="w-full h-full object-cover"
+          />
+        ) : (
+          <div className="flex flex-col items-center justify-center w-full h-full gap-1">
+            <svg
+              viewBox="0 0 24 24"
+              className="w-8 h-8 text-emerald-500"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+            >
+              <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z" />
+              <circle cx="12" cy="13" r="4" />
+            </svg>
+          </div>
+        )}
+
+        {/* زر تعديل صغير */}
+        <motion.div
+          className="absolute bottom-0 right-0 w-7 h-7 bg-emerald-500 rounded-full flex items-center justify-center border-2 border-white shadow"
+          animate={{ scale: preview ? 1 : [1, 1.1, 1] }}
+          transition={{ duration: 2, repeat: preview ? 0 : Infinity }}
+        >
+          <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z" />
+            <circle cx="12" cy="13" r="4" />
+          </svg>
+        </motion.div>
+      </motion.button>
+
+      <div className="text-center" dir="rtl">
+        <p className="text-xs font-semibold text-slate-600">
+          {preview ? "اضغط لتغيير الشعار" : "رفع شعار الصيدلية"}
+        </p>
+        <p className="text-[10px] text-slate-400 mt-0.5">PNG أو JPG — اختياري</p>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
 // File Dropzone
 // ═══════════════════════════════════════════════════════════════
 function FileDropzone({
@@ -346,9 +425,18 @@ export function PharmacyRegistrationForm() {
     fullName: "", pharmacyName: "", workingHours: "", address: "",
     governorate: "", hasCode: false, registrationCode: "", certificateFile: null,
   });
-  const [showGps, setShowGps]       = useState(false);
-  const [submitted, setSubmitted]   = useState(false);
-  const [govLoading, setGovLoading] = useState(false);
+  const [showGps,      setShowGps]      = useState(false);
+  const [submitted,    setSubmitted]    = useState(false);
+  const [govLoading,   setGovLoading]   = useState(false);
+  const [logoFile,     setLogoFile]     = useState<File | null>(null);
+  const [logoPreview,  setLogoPreview]  = useState<string | null>(null);
+
+  const handleLogoChange = (file: File) => {
+    setLogoFile(file);
+    const reader = new FileReader();
+    reader.onload = () => setLogoPreview(reader.result as string);
+    reader.readAsDataURL(file);
+  };
 
   const set = (key: keyof FormData, value: unknown) =>
     setForm((f) => ({ ...f, [key]: value }));
@@ -432,6 +520,10 @@ export function PharmacyRegistrationForm() {
         >
           <Card>
             <SectionHeader title="بيانات الصيدلية" subtitle="المعلومات الرئيسية للصيدلية" />
+
+            {/* ── رفع شعار الصيدلية ── */}
+            <LogoUpload preview={logoPreview} onChange={handleLogoChange} />
+
             <div className="space-y-3">
               <Field label="اسم الصيدلية" icon="🏥">
                 <input
