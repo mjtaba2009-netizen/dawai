@@ -73,10 +73,18 @@ export function Login() {
       >
         {/* الشعار */}
         <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-gradient-to-br from-emerald-400 to-teal-600 rounded-2xl mx-auto mb-4 flex items-center justify-center shadow-lg shadow-emerald-500/30">
-            <span className="text-3xl text-white font-bold">د</span>
-          </div>
-          <h1 className="text-3xl font-bold text-slate-800 mb-2">دوائي</h1>
+          <motion.div
+            initial={{ scale: 0.8, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ type: "spring", damping: 18, stiffness: 260, delay: 0.1 }}
+            className="w-28 h-28 mx-auto mb-3"
+          >
+            <img
+              src={`${import.meta.env.BASE_URL}logo.png`}
+              alt="دوائي"
+              className="w-full h-full object-contain drop-shadow-xl"
+            />
+          </motion.div>
           <p className="text-slate-500 font-medium">رفيقك الموثوق لإيجاد دوائك</p>
         </div>
 
