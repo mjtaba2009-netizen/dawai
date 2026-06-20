@@ -1,0 +1,35 @@
+@Agent (Power Mode + High Effort Enabled):
+You act as a Senior Full-Stack Architect. We need to reach 100% completion for the "Dawai" B2B2C platform by building and connecting the entire Core Business Loop. Execute the following 4 phases perfectly.
+
+### Phase 1: Pharmacy Inventory System (إدارة المخزون)
+1. Build `InventoryManager.jsx` in the Pharmacy Dashboard.
+2. UI: A Glassmorphism grid displaying added medicines. If empty, show a premium Empty State ("مخزونك فارغ").
+3. Add a "Add New Medicine" Modal (Slide-up with Framer Motion).
+4. Fields needed: Image Dropzone, Medicine Name, Price, Category (Dropdown), and a Toggle Switch: "يستلزم وصفة طبية" (Requires Prescription: boolean).
+
+### Phase 2: Patient Cart & Checkout (سلة المشتريات)
+1. Build `Cart.jsx` and a floating Cart Icon in the `BottomNavigation.jsx` with a dynamic item counter.
+2. In `Home.jsx`, allow patients to click "Add to Cart" on medicines.
+3. Checkout Logic (CRITICAL): When the patient clicks "إتمام الطلب" (Checkout) inside the Cart:
+   - Check if ANY item in the cart has `RequiresPrescription === true`.
+   - If YES: Halt checkout and pop up the `PrescriptionScanner` modal to upload a photo.
+   - If NO: Proceed directly to success.
+4. Post-Checkout: Empty the cart, show a Success Toast ("تم إرسال الطلب للصيدلية بنجاح"), and move the data to the Global Orders State.
+
+### Phase 3: Pharmacy Order Board (لوحة إدارة الطلبات - Kanban)
+1. Build `OrdersBoard.jsx` in the Pharmacy Dashboard.
+2. Create a Kanban-style board with 3 columns:
+   - "طلبات جديدة" (New Orders)
+   - "قيد التجهيز" (Processing)
+   - "جاهز للاستلام/التوصيل" (Ready)
+3. Orders placed in Phase 2 must automatically appear in the "New Orders" column here.
+4. Add simple buttons on each order card to move them to the next stage (e.g., "Mark as Processing").
+
+### Phase 4: Strict Global Constraints & Purge
+- Global State: Use React Context or Zustand to connect the Cart, Inventory, and Orders seamlessly so data flows without refreshing.
+- FORBIDDEN: Wipe any existence of the word "Athena" or its logos. 
+- FORBIDDEN: No Facebook icons/links. Use TikTok/Insta.
+- FORBIDDEN: Do not use "Gmunden". Ensure all geographic references are to Iraqi Governorates (Default: Basrah).
+- UI Standard: Everything MUST use Emerald greens, `backdrop-blur` Glassmorphism, and Framer Motion physical springs (`type: "spring"`).
+
+Test the flow internally before considering the task complete.

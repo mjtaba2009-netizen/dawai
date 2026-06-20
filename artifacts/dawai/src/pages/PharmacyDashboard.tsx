@@ -7,11 +7,113 @@
  */
 import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, Pencil, Trash2, X, Package, ShoppingBag, Check, Clock } from "lucide-react";
+import confetti from "canvas-confetti";
+import { Plus, Pencil, Trash2, X, Package, ShoppingBag, Check, Clock, BadgeCheck, Sparkles } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useOrderAutomation, type OrderPayload } from "@/contexts/OrderAutomationContext";
 import { useToast } from "@/hooks/use-toast";
 import { AddMedicineForm } from "@/components/AddMedicineForm";
+
+// ═══════════════════════════════════════════════════════════════════
+// fireWelcomeConfetti — احتفال أنيق هادئ بألوان المنصة الزمردية
+// ═══════════════════════════════════════════════════════════════════
+function fireWelcomeConfetti() {
+  const colors = ["#10b981", "#2dd4bf", "#34d399", "#a7f3d0", "#ffffff"];
+  const fire = (particleRatio: number, opts: confetti.Options) =>
+    confetti({
+      origin: { y: 0.35 },
+      colors,
+      disableForReducedMotion: true,
+      ...opts,
+      particleCount: Math.floor(200 * particleRatio),
+    });
+
+  fire(0.25, { spread: 26, startVelocity: 55 });
+  fire(0.2, { spread: 60 });
+  fire(0.35, { spread: 100, decay: 0.91, scalar: 0.9 });
+  fire(0.1, { spread: 120, startVelocity: 25, decay: 0.92, scalar: 1.2 });
+  fire(0.1, { spread: 120, startVelocity: 45 });
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// WelcomeActivation — شاشة الترحيب الاحتفالية بعد التفعيل (المرحلة 2)
+// ═══════════════════════════════════════════════════════════════════
+function WelcomeActivation({ onAddFirst }: { onAddFirst: () => void }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.4 }}
+      dir="rtl"
+      className="fixed inset-0 z-[90] flex items-center justify-center px-6 overflow-hidden
+        bg-gradient-to-br from-slate-900 via-emerald-950 to-slate-900"
+    >
+      <motion.div
+        initial={{ opacity: 0, scale: 0.85 }}
+        animate={{ opacity: 0.4, scale: 1 }}
+        transition={{ duration: 1.4, ease: "easeOut" }}
+        className="pointer-events-none absolute top-1/4 left-1/2 -translate-x-1/2 w-[440px] h-[440px]
+          rounded-full bg-emerald-500 blur-[120px]"
+      />
+
+      <motion.div
+        initial={{ y: 40, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ type: "spring", damping: 24, stiffness: 240, delay: 0.15 }}
+        className="relative w-full max-w-[400px] rounded-[32px] p-7 text-center
+          bg-white/90 backdrop-blur-2xl border border-white/60
+          shadow-[0_20px_60px_rgba(0,0,0,0.45)]"
+      >
+        <motion.div
+          initial={{ scale: 0, rotate: -25 }}
+          animate={{ scale: 1, rotate: 0 }}
+          transition={{ type: "spring", damping: 12, stiffness: 200, delay: 0.4 }}
+          className="mx-auto w-20 h-20 rounded-3xl bg-gradient-to-br from-emerald-500 to-teal-600
+            flex items-center justify-center mb-5 shadow-[0_10px_30px_rgba(16,185,129,0.5)]"
+        >
+          <BadgeCheck className="w-11 h-11 text-white" />
+        </motion.div>
+
+        <motion.h2
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.55 }}
+          className="text-slate-900 text-2xl mb-2"
+          style={{ fontWeight: 800 }}
+        >
+          مرحباً بك في شبكة دوائي!
+        </motion.h2>
+
+        <motion.p
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.65 }}
+          className="text-slate-500 text-sm leading-relaxed mb-6"
+        >
+          حسابك الآن نشط وموثّق ✦ أصبحت صيدليتك جزءاً من شبكة دوائي الطبية.
+          ابدأ ببناء مخزونك ليصلك المرضى فوراً.
+        </motion.p>
+
+        <motion.button
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.75 }}
+          whileTap={{ scale: 0.98 }}
+          onClick={onAddFirst}
+          className="w-full h-14 rounded-2xl flex items-center justify-center gap-2
+            bg-gradient-to-r from-emerald-500 to-teal-500 text-white text-base
+            shadow-[0_8px_28px_rgba(16,185,129,0.45)]"
+          style={{ fontWeight: 800 }}
+          data-testid="button-add-first-medicine"
+        >
+          <Sparkles className="w-5 h-5" />
+          أضف أول دواء لمخزونك
+        </motion.button>
+      </motion.div>
+    </motion.div>
+  );
+}
 
 // ═══════════════════════════════════════════════════════════════════
 // Types
@@ -508,7 +610,7 @@ function PharmacyOrdersTab({
 // PharmacyDashboard — الصفحة الرئيسية
 // ═══════════════════════════════════════════════════════════════════
 export function PharmacyDashboard() {
-  const { user } = useAuth();
+  const { user, justActivated, clearJustActivated } = useAuth();
   const { toast } = useToast();
   const api = usePharmacyApi(user?.token);
 
@@ -517,8 +619,24 @@ export function PharmacyDashboard() {
   const [isLoading, setIsLoading]     = useState(true);
   const [editingItem, setEditingItem] = useState<InventoryItem | null | "new">(null);
   const [deletingId, setDeletingId]   = useState<number | null>(null);
+  const [showWelcome, setShowWelcome] = useState(false);
 
   const pharmacyName = user?.name ?? "الصيدلية";
+
+  // المرحلة 2 — احتفال لمرة واحدة بعد التفعيل: Confetti + شاشة الترحيب
+  useEffect(() => {
+    if (!justActivated) return;
+    setShowWelcome(true);
+    fireWelcomeConfetti();
+    clearJustActivated(); // نستهلك العلامة فوراً حتى لا يتكرر الاحتفال
+  }, [justActivated, clearJustActivated]);
+
+  // CTA شاشة الترحيب — يفتح نموذج إضافة أول دواء مباشرةً
+  const handleAddFirstMedicine = () => {
+    setShowWelcome(false);
+    setActiveTab("inventory");
+    setEditingItem("new");
+  };
 
   const fetchInventory = useCallback(async () => {
     try {
@@ -707,6 +825,11 @@ export function PharmacyDashboard() {
             onClose={() => setEditingItem(null)}
           />
         )}
+      </AnimatePresence>
+
+      {/* المرحلة 2 — شاشة الترحيب الاحتفالية بعد التفعيل */}
+      <AnimatePresence>
+        {showWelcome && <WelcomeActivation onAddFirst={handleAddFirstMedicine} />}
       </AnimatePresence>
     </div>
   );

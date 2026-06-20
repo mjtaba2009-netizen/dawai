@@ -270,4 +270,32 @@ router.delete("/pharmacy/inventory/:id", async (req, res): Promise<void> => {
   res.status(204).send();
 });
 
+// تفعيل حساب الصيدلية بعد التوقيع الرقمي على اتفاقية الانضمام
+router.post("/pharmacy/activate", async (req, res): Promise<void> => {
+  const user = await getAuthUser(req as Parameters<typeof getAuthUser>[0]);
+  if (!user || user.role !== "pharmacy") {
+    res.status(403).json({ error: "غير مصرح" });
+    return;
+  }
+
+  // عملية idempotent — إن كان نشطاً مسبقاً نعيد بياناته كما هي
+  const [updated] = await db
+    .update(usersTable)
+    .set({ status: "active" })
+    .where(eq(usersTable.id, user.id))
+    .returning();
+
+  res.json({
+    user: {
+      id: updated.id,
+      name: updated.name,
+      phone: updated.phone,
+      avatar: updated.avatar ?? null,
+      role: updated.role as "patient" | "pharmacy",
+      status: (updated.status ?? "active") as "active" | "approved_pending_signature",
+      pharmacyId: updated.pharmacyId ?? null,
+    },
+  });
+});
+
 export default router;

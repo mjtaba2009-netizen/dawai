@@ -24,6 +24,7 @@ function formatUser(user: typeof usersTable.$inferSelect) {
     phone: user.phone,
     avatar: user.avatar ?? null,
     role: user.role as "patient" | "pharmacy",
+    status: (user.status ?? "active") as "active" | "approved_pending_signature",
     pharmacyId: user.pharmacyId ?? null,
   };
 }

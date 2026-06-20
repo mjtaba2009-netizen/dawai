@@ -8,6 +8,7 @@ import { AuthContext, AuthProvider } from '@/contexts/AuthContext';
 import { OrderAutomationProvider } from '@/contexts/OrderAutomationContext';
 import { OrderAutomationManager } from '@/components/OrderAutomationManager';
 import { SplashIntro } from '@/components/SplashIntro';
+import { PartnershipAgreementModal } from '@/components/PartnershipAgreementModal';
 import { Layout } from '@/components/Layout';
 
 // Pages
@@ -35,6 +36,11 @@ const AppRoutes = () => {
         <Route path="*" element={<Login />} />
       </Routes>
     );
+  }
+
+  // بوابة الانضمام — الصيدلية المعتمَدة تنتظر التوقيع الرقمي قبل الوصول للوحة التحكم
+  if (user.role === 'pharmacy' && user.status === 'approved_pending_signature') {
+    return <PartnershipAgreementModal />;
   }
 
   return (

@@ -8,6 +8,7 @@ export const usersTable = pgTable("users", {
   phone: text("phone").notNull().unique(),
   password: text("password").notNull(),
   role: text("role").notNull().default("patient"),
+  status: text("status").notNull().default("active"),
   pharmacyId: integer("pharmacy_id"),
   avatar: text("avatar"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

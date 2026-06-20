@@ -1,0 +1,20 @@
+@Agent (Power Mode Enabled):
+You must build a highly professional B2B Onboarding Flow for pharmacies after their KYC documents are approved by the Support Team. Avoid simple push notifications; we need an enterprise-grade activation flow.
+
+### Phase 1: The Digital Contract Modal (Terms & Conditions)
+1. Add a new account status logic: `status: 'approved_pending_signature'`.
+2. When a pharmacy user with this status logs into the app, DO NOT show the main dashboard. Instead, render a full-screen, Glassmorphism Modal titled "اتفاقية الانضمام لمنصة دوائي" (Dawai Platform Partnership Agreement).
+3. The modal should contain a scrollable text area outlining mock terms (quality standards, service agreements).
+4. At the bottom, add a checkbox: "أقر بأنني اطلعت على الشروط وأوافق عليها كطرف ملزم قانونياً" (I have read and agree to the terms as a legally binding party).
+5. Below that, add a large Emerald "توقيع رقمي وتفعيل الحساب" (Digital Signature & Activate Account) button. This button only becomes clickable when the checkbox is checked.
+6. Upon clicking, change the user status to `status: 'active'` and proceed to Phase 2.
+
+### Phase 2: The Welcome Confetti & First-Login Empty State
+1. Once activated, route the user to their Dashboard (`/dashboard`).
+2. Trigger a subtle, elegant Confetti animation (using a library like `canvas-confetti` or Framer Motion particles) to celebrate their official joining.
+3. Show a beautifully designed Empty State component in the dashboard that says: "مرحباً بك في شبكة دوائي! حسابك الآن نشط وموثق." (Welcome to the Dawai Network! Your account is now active and verified).
+4. Include a primary Call-to-Action button in this empty state: "أضف أول دواء لمخزونك" (Add your first medicine) that guides them directly to the Add Medicine form.
+
+### Constraints & Quality:
+- Use Framer Motion for the modal slide-up and empty state fade-in. Ensure it feels like a premium Apple/Stripe onboarding experience.
+- STRICT CONSTRAINT: Do not use the word "Athena" or any related logos anywhere. No Facebook links/icons.

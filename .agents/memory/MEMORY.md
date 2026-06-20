@@ -1,1 +1,1 @@
-- [Dawai app zod-in-api-server](dawai-zod-dep.md) — zod must be added as a direct dep to api-server; importing from zod/v4 or zod fails if not listed in package.json.
+- [Adding npm deps to an artifact](pnpm-add-to-artifact.md) — use `pnpm --filter @workspace/<pkg> add <dep>`; root package tool fails with ERR_PNPM_ADDING_TO_ROOT.
