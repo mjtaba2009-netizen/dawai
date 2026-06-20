@@ -123,7 +123,7 @@ export function Login() {
   const [pharName, setPharName]           = useState('');
   const [pharHours, setPharHours]         = useState('');
   const [pharAddress, setPharAddress]     = useState('');
-  const [pharGov, setPharGov]             = useState('Gmunden');
+  const [pharGov, setPharGov]             = useState('البصرة');
   const [pharHasCode, setPharHasCode]     = useState(false);
   const [pharCode, setPharCode]           = useState('');
   const [pharCert, setPharCert]           = useState<File | null>(null);
@@ -336,7 +336,11 @@ export function Login() {
                         paddingLeft: '32px',
                       }}
                     >
-                      {['البصرة', 'بغداد', 'أربيل', 'الموصل', 'النجف', 'كربلاء', 'Gmunden'].map(g => (
+                      {[
+                        'بغداد','البصرة','نينوى','أربيل','السليمانية','دهوك','كركوك',
+                        'النجف','كربلاء','بابل','ذي قار','ميسان','الأنبار','ديالى',
+                        'صلاح الدين','المثنى','القادسية','واسط',
+                      ].map(g => (
                         <option key={g} value={g}>{g}</option>
                       ))}
                     </select>

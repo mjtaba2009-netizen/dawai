@@ -313,7 +313,7 @@ function FileDropzone({
 export function PharmacyRegistrationForm() {
   const [form, setForm] = useState<FormData>({
     fullName: "", pharmacyName: "", workingHours: "", address: "",
-    governorate: "", hasCode: false, registrationCode: "", certificateFile: null,
+    governorate: "البصرة", hasCode: false, registrationCode: "", certificateFile: null,
   });
   const [showGps, setShowGps]     = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -327,7 +327,11 @@ export function PharmacyRegistrationForm() {
     setTimeout(() => setSubmitted(false), 3000);
   };
 
-  const governorates = ["البصرة", "بغداد", "أربيل", "الموصل", "النجف", "كربلاء", "Gmunden"];
+  const governorates = [
+    "بغداد","البصرة","نينوى","أربيل","السليمانية","دهوك","كركوك",
+    "النجف","كربلاء","بابل","ذي قار","ميسان","الأنبار","ديالى",
+    "صلاح الدين","المثنى","القادسية","واسط",
+  ];
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100/50" dir="rtl">
