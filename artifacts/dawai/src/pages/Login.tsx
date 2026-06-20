@@ -1,12 +1,12 @@
-import { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { useLocation } from "wouter";
-import { useAuth, UserRole } from "@/contexts/AuthContext";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { useToast } from "@/hooks/use-toast";
-import { User, Store } from "lucide-react";
+import { useState, useContext } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
+import { AuthContext, UserRole } from '@/contexts/AuthContext';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { useToast } from '@/hooks/use-toast';
+import { User, Store } from 'lucide-react';
 
 const FloatingShape = ({
   className,
@@ -20,40 +20,38 @@ const FloatingShape = ({
   <motion.div
     className={`absolute rounded-full opacity-20 blur-2xl ${className}`}
     animate={{ y: [0, -30, 0], x: [0, 20, 0], scale: [1, 1.1, 1] }}
-    transition={{ duration, repeat: Infinity, ease: "easeInOut", delay }}
+    transition={{ duration, repeat: Infinity, ease: 'easeInOut', delay }}
   />
 );
 
 export function Login() {
-  const [, setLocation] = useLocation();
-  const { toast } = useToast();
-  const { apiLogin, apiRegister } = useAuth();
+  const navigate   = useNavigate();
+  const { toast }  = useToast();
+  const { apiLogin, apiRegister } = useContext(AuthContext)!;
 
-  const [mode, setMode] = useState<"login" | "register">("login");
-  const [role, setRole] = useState<UserRole>("patient");
-
-  const [phone, setPhone] = useState("");
-  const [password, setPassword] = useState("");
-  const [name, setName] = useState("");
+  const [mode, setMode]       = useState<'login' | 'register'>('login');
+  const [role, setRole]       = useState<UserRole>('patient');
+  const [phone, setPhone]     = useState('');
+  const [password, setPassword] = useState('');
+  const [name, setName]       = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     try {
-      let authUser;
-      if (mode === "login") {
-        authUser = await apiLogin(phone, password);
-      } else {
-        authUser = await apiRegister(name, phone, password, role);
-      }
-      // Redirect based on role
-      setLocation(authUser.role === "pharmacy" ? "/pharmacy-dashboard" : "/");
+      const authUser =
+        mode === 'login'
+          ? await apiLogin(phone, password)
+          : await apiRegister(name, phone, password, role);
+
+      // توجيه حسب نوع الحساب
+      navigate(authUser.role === 'pharmacy' ? '/dashboard' : '/home', { replace: true });
     } catch (err) {
       toast({
-        title: mode === "login" ? "خطأ في تسجيل الدخول" : "خطأ في التسجيل",
-        description: String(err).replace("Error: ", ""),
-        variant: "destructive",
+        title: mode === 'login' ? 'خطأ في تسجيل الدخول' : 'خطأ في التسجيل',
+        description: String(err).replace('Error: ', ''),
+        variant: 'destructive',
       });
     } finally {
       setIsLoading(false);
@@ -64,13 +62,13 @@ export function Login() {
     <div className="relative flex-1 flex flex-col justify-center px-6 overflow-hidden bg-white">
       {/* خلفية متحركة */}
       <FloatingShape className="w-64 h-64 bg-emerald-400 -top-20 -right-20" delay={0} duration={8} />
-      <FloatingShape className="w-48 h-48 bg-teal-400 top-40 -left-10" delay={2} duration={10} />
+      <FloatingShape className="w-48 h-48 bg-teal-400 top-40 -left-10"    delay={2} duration={10} />
       <FloatingShape className="w-80 h-80 bg-emerald-300 -bottom-32 right-10" delay={1} duration={12} />
 
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6, ease: "easeOut" }}
+        transition={{ duration: 0.6, ease: 'easeOut' }}
         className="relative z-10 w-full max-w-sm mx-auto"
       >
         {/* الشعار */}
@@ -85,26 +83,27 @@ export function Login() {
         <div className="bg-white/70 backdrop-blur-xl rounded-3xl p-6 shadow-xl border border-white/50">
           {/* تبويبات تسجيل دخول / حساب جديد */}
           <div className="flex p-1 bg-slate-100/80 rounded-2xl mb-5">
-            {(["login", "register"] as const).map((m) => (
+            {(['login', 'register'] as const).map((m) => (
               <button
                 key={m}
+                type="button"
                 onClick={() => setMode(m)}
                 className={`flex-1 py-2 text-sm font-semibold rounded-xl transition-all ${
-                  mode === m ? "bg-white text-emerald-700 shadow-sm" : "text-slate-500"
+                  mode === m ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-500'
                 }`}
                 data-testid={`tab-${m}`}
               >
-                {m === "login" ? "تسجيل الدخول" : "حساب جديد"}
+                {m === 'login' ? 'تسجيل الدخول' : 'حساب جديد'}
               </button>
             ))}
           </div>
 
-          {/* اختيار نوع الحساب — فقط عند إنشاء الحساب */}
+          {/* اختيار نوع الحساب — عند التسجيل فقط */}
           <AnimatePresence mode="popLayout">
-            {mode === "register" && (
+            {mode === 'register' && (
               <motion.div
                 initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: "auto" }}
+                animate={{ opacity: 1, height: 'auto' }}
                 exit={{ opacity: 0, height: 0 }}
                 className="mb-5"
               >
@@ -112,8 +111,8 @@ export function Login() {
                 <div className="grid grid-cols-2 gap-2">
                   {(
                     [
-                      { value: "patient", label: "مستخدم عادي", icon: User, sub: "أبحث عن دواء" },
-                      { value: "pharmacy", label: "صيدلية", icon: Store, sub: "أدير صيدلية" },
+                      { value: 'patient',  label: 'مستخدم عادي', icon: User,  sub: 'أبحث عن دواء' },
+                      { value: 'pharmacy', label: 'صيدلية',       icon: Store, sub: 'أدير صيدلية'  },
                     ] as const
                   ).map(({ value, label, icon: Icon, sub }) => (
                     <button
@@ -122,19 +121,27 @@ export function Login() {
                       onClick={() => setRole(value)}
                       className={`p-3 rounded-2xl border-2 transition-all text-right ${
                         role === value
-                          ? "border-emerald-500 bg-emerald-50"
-                          : "border-slate-200 bg-white"
+                          ? 'border-emerald-500 bg-emerald-50'
+                          : 'border-slate-200 bg-white'
                       }`}
                       data-testid={`role-${value}`}
                     >
                       <div
                         className={`w-8 h-8 rounded-xl flex items-center justify-center mb-2 ${
-                          role === value ? "bg-emerald-500" : "bg-slate-100"
+                          role === value ? 'bg-emerald-500' : 'bg-slate-100'
                         }`}
                       >
-                        <Icon className={`w-4 h-4 ${role === value ? "text-white" : "text-slate-500"}`} />
+                        <Icon
+                          className={`w-4 h-4 ${
+                            role === value ? 'text-white' : 'text-slate-500'
+                          }`}
+                        />
                       </div>
-                      <p className={`text-xs font-bold ${role === value ? "text-emerald-700" : "text-slate-700"}`}>
+                      <p
+                        className={`text-xs font-bold ${
+                          role === value ? 'text-emerald-700' : 'text-slate-700'
+                        }`}
+                      >
                         {label}
                       </p>
                       <p className="text-[10px] text-slate-400 mt-0.5">{sub}</p>
@@ -148,21 +155,21 @@ export function Login() {
           <form onSubmit={handleSubmit} className="space-y-4">
             {/* الاسم — عند التسجيل فقط */}
             <AnimatePresence mode="popLayout">
-              {mode === "register" && (
+              {mode === 'register' && (
                 <motion.div
                   initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: "auto" }}
+                  animate={{ opacity: 1, height: 'auto' }}
                   exit={{ opacity: 0, height: 0 }}
                   className="space-y-2"
                 >
                   <Label htmlFor="name" className="text-slate-600">
-                    {role === "pharmacy" ? "اسم الصيدلية" : "الاسم الكامل"}
+                    {role === 'pharmacy' ? 'اسم الصيدلية' : 'الاسم الكامل'}
                   </Label>
                   <Input
                     id="name"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    required={mode === "register"}
+                    required={mode === 'register'}
                     className="bg-white/50 border-slate-200 focus-visible:ring-emerald-500 h-12 rounded-xl"
                     data-testid="input-name"
                   />
@@ -194,7 +201,7 @@ export function Login() {
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 dir="ltr"
-                autoComplete={mode === "login" ? "current-password" : "new-password"}
+                autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
                 className="bg-white/50 border-slate-200 focus-visible:ring-emerald-500 h-12 rounded-xl text-right"
                 data-testid="input-password"
               />
@@ -207,7 +214,7 @@ export function Login() {
                 disabled={isLoading}
                 data-testid="button-submit"
               >
-                {isLoading ? "..." : mode === "login" ? "دخول" : "إنشاء حساب"}
+                {isLoading ? '...' : mode === 'login' ? 'دخول' : 'إنشاء حساب'}
               </Button>
             </motion.div>
 

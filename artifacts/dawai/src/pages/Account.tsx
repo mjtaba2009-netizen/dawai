@@ -1,21 +1,13 @@
-import { motion } from "framer-motion";
-import { User, Bell, Lock, HelpCircle, Star, LogOut, ChevronLeft, Shield, Phone } from "lucide-react";
-import { useAuth } from "@/contexts/AuthContext";
+import { motion } from 'framer-motion';
+import { useContext } from 'react';
+import { User, Bell, Lock, HelpCircle, Star, LogOut, ChevronLeft, Shield, Phone } from 'lucide-react';
+import { AuthContext } from '@/contexts/AuthContext';
 
 function SettingItem({
-  icon: Icon,
-  label,
-  iconBg = "bg-slate-100",
-  iconColor = "text-slate-600",
-  onClick,
-  index,
+  icon: Icon, label, iconBg = 'bg-slate-100', iconColor = 'text-slate-600', onClick, index,
 }: {
-  icon: React.ElementType;
-  label: string;
-  iconBg?: string;
-  iconColor?: string;
-  onClick?: () => void;
-  index: number;
+  icon: React.ElementType; label: string; iconBg?: string;
+  iconColor?: string; onClick?: () => void; index: number;
 }) {
   return (
     <motion.button
@@ -25,7 +17,6 @@ function SettingItem({
       whileTap={{ scale: 0.98 }}
       onClick={onClick}
       className="w-full flex items-center gap-3 p-4 bg-white rounded-2xl border border-slate-100 shadow-sm"
-      data-testid={`button-setting-${index}`}
     >
       <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${iconBg}`}>
         <Icon className={`w-5 h-5 ${iconColor}`} />
@@ -37,29 +28,29 @@ function SettingItem({
 }
 
 export function Account() {
-  const { user, logout } = useAuth();
+  const { user, logout } = useContext(AuthContext)!;
 
   const settingsGroups = [
     {
-      title: "الحساب",
+      title: 'الحساب',
       items: [
-        { icon: User, label: "معلومات الملف الشخصي", iconBg: "bg-emerald-50", iconColor: "text-emerald-600" },
-        { icon: Phone, label: "رقم الجوال", iconBg: "bg-blue-50", iconColor: "text-blue-600" },
-        { icon: Lock, label: "كلمة المرور", iconBg: "bg-purple-50", iconColor: "text-purple-600" },
+        { icon: User,  label: 'معلومات الملف الشخصي', iconBg: 'bg-emerald-50', iconColor: 'text-emerald-600' },
+        { icon: Phone, label: 'رقم الجوال',            iconBg: 'bg-blue-50',    iconColor: 'text-blue-600'    },
+        { icon: Lock,  label: 'كلمة المرور',           iconBg: 'bg-purple-50',  iconColor: 'text-purple-600'  },
       ],
     },
     {
-      title: "التفضيلات",
+      title: 'التفضيلات',
       items: [
-        { icon: Bell, label: "إعدادات الإشعارات", iconBg: "bg-amber-50", iconColor: "text-amber-600" },
-        { icon: Shield, label: "الخصوصية والأمان", iconBg: "bg-teal-50", iconColor: "text-teal-600" },
+        { icon: Bell,   label: 'إعدادات الإشعارات',  iconBg: 'bg-amber-50', iconColor: 'text-amber-600' },
+        { icon: Shield, label: 'الخصوصية والأمان',    iconBg: 'bg-teal-50',  iconColor: 'text-teal-600'  },
       ],
     },
     {
-      title: "الدعم",
+      title: 'الدعم',
       items: [
-        { icon: Star, label: "قيّم التطبيق", iconBg: "bg-yellow-50", iconColor: "text-yellow-600" },
-        { icon: HelpCircle, label: "المساعدة والدعم", iconBg: "bg-indigo-50", iconColor: "text-indigo-600" },
+        { icon: Star,        label: 'قيّم التطبيق',      iconBg: 'bg-yellow-50', iconColor: 'text-yellow-600' },
+        { icon: HelpCircle,  label: 'المساعدة والدعم',   iconBg: 'bg-indigo-50', iconColor: 'text-indigo-600' },
       ],
     },
   ];
@@ -74,7 +65,7 @@ export function Account() {
             <User className="w-8 h-8 text-white" />
           </div>
           <div>
-            <h2 className="text-white text-xl font-bold">{user?.name ?? "المستخدم"}</h2>
+            <h2 className="text-white text-xl font-bold">{user?.name ?? 'المستخدم'}</h2>
             {user?.phone && (
               <p className="text-emerald-100 text-sm mt-0.5" dir="ltr">{user.phone}</p>
             )}
@@ -109,7 +100,6 @@ export function Account() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.5 }}
           whileTap={{ scale: 0.97 }}
-          whileHover={{ scale: 1.01 }}
           onClick={logout}
           className="w-full py-4 flex items-center justify-center gap-2 rounded-2xl bg-red-50 border border-red-100 text-red-600 font-bold"
           data-testid="button-logout"

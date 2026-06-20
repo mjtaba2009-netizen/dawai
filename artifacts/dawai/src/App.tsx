@@ -1,19 +1,20 @@
-import { Layout } from "@/components/Layout";
-import { Switch, Route, Router as WouterRouter, Redirect } from "wouter";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Toaster } from "@/components/ui/toaster";
-import { TooltipProvider } from "@/components/ui/tooltip";
-import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import React, { useContext } from 'react';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { Toaster } from '@/components/ui/toaster';
+import { TooltipProvider } from '@/components/ui/tooltip';
+import { AuthContext, AuthProvider } from '@/contexts/AuthContext';
+import { Layout } from '@/components/Layout';
 
 // Pages
-import NotFound from "@/pages/not-found";
-import { Login } from "@/pages/Login";
-import { Home } from "@/pages/Home";
-import { Search } from "@/pages/Search";
-import { Orders } from "@/pages/Orders";
-import { Notifications } from "@/pages/Notifications";
-import { Account } from "@/pages/Account";
-import { PharmacyDashboard } from "@/pages/PharmacyDashboard";
+import { Login } from '@/pages/Login';
+import { Home } from '@/pages/Home';
+import { Search } from '@/pages/Search';
+import { Orders } from '@/pages/Orders';
+import { Notifications } from '@/pages/Notifications';
+import { Account } from '@/pages/Account';
+import { PharmacyDashboard } from '@/pages/PharmacyDashboard';
+import NotFound from '@/pages/not-found';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -21,75 +22,53 @@ const queryClient = new QueryClient({
   },
 });
 
-function Router() {
-  const { user, loading } = useAuth();
+const AppRoutes = () => {
+  const { user } = useContext(AuthContext)!;
 
-  const isAuthenticated = !!user;
-  const isPharmacy = user?.role === 'pharmacy';
+  // إذا لم يسجل الدخول، وجهه دائماً لصفحة الدخول
+  if (!user) {
+    return (
+      <Routes>
+        <Route path="*" element={<Login />} />
+      </Routes>
+    );
+  }
 
-  // Loading is handled by AuthProvider (!loading && children), but keep a
-  // fallback for any edge case where Router renders before context settles.
-  if (loading) return null;
-
+  // إذا كان مسجلاً، وجهه حسب نوع حسابه (صيدلية أو مريض)
   return (
-    <Layout>
-      <Switch>
-        {/* Login page — redirect away if already authenticated */}
-        <Route path="/login">
-          {isAuthenticated ? (
-            <Redirect to={isPharmacy ? "/pharmacy-dashboard" : "/"} />
-          ) : (
-            <Login />
-          )}
-        </Route>
-
-        {/* Patient-only routes — require auth */}
-        <Route path="/">
-          {!isAuthenticated ? <Redirect to="/login" /> : isPharmacy ? <Redirect to="/pharmacy-dashboard" /> : <Home />}
-        </Route>
-        <Route path="/search">
-          {!isAuthenticated ? <Redirect to="/login" /> : <Search />}
-        </Route>
-        <Route path="/orders">
-          {!isAuthenticated ? <Redirect to="/login" /> : <Orders />}
-        </Route>
-        <Route path="/notifications">
-          {!isAuthenticated ? <Redirect to="/login" /> : <Notifications />}
-        </Route>
-        <Route path="/account">
-          {!isAuthenticated ? <Redirect to="/login" /> : <Account />}
-        </Route>
-
-        {/* Pharmacy-only route */}
-        <Route path="/pharmacy-dashboard">
-          {!isAuthenticated ? (
-            <Redirect to="/login" />
-          ) : !isPharmacy ? (
-            <Redirect to="/" />
-          ) : (
-            <PharmacyDashboard />
-          )}
-        </Route>
-
-        <Route component={NotFound} />
-      </Switch>
-    </Layout>
+    <Routes>
+      {user.role === 'pharmacy' ? (
+        <>
+          <Route path="/dashboard" element={<PharmacyDashboard />} />
+          <Route path="*" element={<Navigate to="/dashboard" replace />} />
+        </>
+      ) : (
+        <>
+          <Route path="/home"          element={<Home />} />
+          <Route path="/search"        element={<Search />} />
+          <Route path="/orders"        element={<Orders />} />
+          <Route path="/notifications" element={<Notifications />} />
+          <Route path="/account"       element={<Account />} />
+          <Route path="*"              element={<Navigate to="/home" replace />} />
+        </>
+      )}
+    </Routes>
   );
-}
+};
 
-function App() {
+export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <AuthProvider>
-          <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-            <Router />
-          </WouterRouter>
-          <Toaster />
+          <BrowserRouter basename={import.meta.env.BASE_URL}>
+            <Layout>
+              <AppRoutes />
+            </Layout>
+            <Toaster />
+          </BrowserRouter>
         </AuthProvider>
       </TooltipProvider>
     </QueryClientProvider>
   );
 }
-
-export default App;

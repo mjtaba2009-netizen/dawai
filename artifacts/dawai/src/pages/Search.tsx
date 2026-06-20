@@ -1,13 +1,12 @@
-import { useSearch, useLocation } from "wouter";
-import { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { ArrowRight, MapPin, MessageCircle, ShoppingBag, Star } from "lucide-react";
-import { useSearchMedications, useCreateOrder, getGetOrdersQueryKey } from "@workspace/api-client-react";
-import { useQueryClient } from "@tanstack/react-query";
-import { useToast } from "@/hooks/use-toast";
-import { PrescriptionModal } from "@/components/PrescriptionModal";
+import { useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
+import { ArrowRight, MapPin, MessageCircle, ShoppingBag, Star } from 'lucide-react';
+import { useSearchMedications, useCreateOrder, getGetOrdersQueryKey } from '@workspace/api-client-react';
+import { useQueryClient } from '@tanstack/react-query';
+import { useToast } from '@/hooks/use-toast';
+import { PrescriptionModal } from '@/components/PrescriptionModal';
 
-// Skeleton loader
 function PharmacyResultSkeleton() {
   return (
     <div className="animate-pulse bg-white rounded-2xl p-4 shadow-sm border border-slate-100">
@@ -21,45 +20,23 @@ function PharmacyResultSkeleton() {
             <div className="h-6 bg-slate-200 rounded-lg w-16" />
           </div>
         </div>
-        <div className="h-8 bg-slate-200 rounded-xl w-16 flex-shrink-0" />
       </div>
     </div>
   );
 }
 
-// بطاقة نتيجة صيدلية
 function PharmacyResultCard({
-  pharmacyId,
-  medicationId,
-  medicationName,
-  requiresPrescription,
-  pharmacyName,
-  address,
-  distance,
-  isOpen,
-  rating,
-  whatsapp,
-  price,
-  quantity,
-  index,
+  pharmacyId, medicationId, medicationName, requiresPrescription,
+  pharmacyName, address, distance, isOpen, rating, whatsapp, price, quantity, index,
 }: {
-  pharmacyId: number;
-  medicationId: number;
-  medicationName: string;
-  requiresPrescription: boolean;
-  pharmacyName: string;
-  address: string;
-  distance: number;
-  isOpen: boolean;
-  rating: number | null;
-  whatsapp: string | null;
-  price: number;
-  quantity: number;
-  index: number;
+  pharmacyId: number; medicationId: number; medicationName: string;
+  requiresPrescription: boolean; pharmacyName: string; address: string;
+  distance: number; isOpen: boolean; rating: number | null;
+  whatsapp: string | null; price: number; quantity: number; index: number;
 }) {
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
-  const createOrder = useCreateOrder();
+  const { toast }      = useToast();
+  const queryClient    = useQueryClient();
+  const createOrder    = useCreateOrder();
   const [showPrescription, setShowPrescription] = useState(false);
 
   const doReserve = () => {
@@ -68,27 +45,17 @@ function PharmacyResultCard({
       {
         onSuccess: () => {
           queryClient.invalidateQueries({ queryKey: getGetOrdersQueryKey() });
-          toast({ title: "تم الحجز بنجاح", description: `تم حجز الدواء من ${pharmacyName}` });
+          toast({ title: 'تم الحجز بنجاح', description: `تم حجز الدواء من ${pharmacyName}` });
         },
         onError: () => {
-          toast({ title: "فشل الحجز", description: "يرجى المحاولة مرة أخرى", variant: "destructive" });
+          toast({ title: 'فشل الحجز', description: 'يرجى المحاولة مرة أخرى', variant: 'destructive' });
         },
       }
     );
   };
 
   const handleReserveClick = () => {
-    // Show prescription modal if required
-    if (requiresPrescription) {
-      setShowPrescription(true);
-    } else {
-      doReserve();
-    }
-  };
-
-  const handleWhatsApp = () => {
-    const number = whatsapp?.replace(/\D/g, "") || "";
-    if (number) window.open(`https://wa.me/${number}`, "_blank");
+    requiresPrescription ? setShowPrescription(true) : doReserve();
   };
 
   return (
@@ -101,22 +68,14 @@ function PharmacyResultCard({
         data-testid={`card-pharmacy-result-${index}`}
       >
         <div className="flex items-start gap-3">
-          <div className="w-12 h-12 flex-shrink-0 bg-gradient-to-br from-emerald-100 to-teal-200 rounded-xl flex items-center justify-center text-xl">
-            🏪
-          </div>
-
+          <div className="w-12 h-12 flex-shrink-0 bg-gradient-to-br from-emerald-100 to-teal-200 rounded-xl flex items-center justify-center text-xl">🏪</div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-0.5">
               <p className="font-bold text-slate-800 truncate">{pharmacyName}</p>
-              <span
-                className={`flex-shrink-0 text-[10px] px-2 py-0.5 rounded-full font-medium ${
-                  isOpen ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-500"
-                }`}
-              >
-                {isOpen ? "مفتوح" : "مغلق"}
+              <span className={`flex-shrink-0 text-[10px] px-2 py-0.5 rounded-full font-medium ${isOpen ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-500'}`}>
+                {isOpen ? 'مفتوح' : 'مغلق'}
               </span>
             </div>
-
             <div className="flex items-center gap-1 text-slate-400 text-xs mb-2">
               <MapPin className="w-3 h-3" />
               <span className="truncate">{address}</span>
@@ -125,7 +84,6 @@ function PharmacyResultCard({
                 {distance < 1 ? `${Math.round(distance * 1000)} م` : `${distance.toFixed(1)} كم`}
               </span>
             </div>
-
             <div className="flex items-center gap-3">
               <div className="bg-emerald-50 rounded-lg px-3 py-1">
                 <span className="text-emerald-700 font-bold text-sm">{price.toFixed(2)}</span>
@@ -139,9 +97,7 @@ function PharmacyResultCard({
                 </div>
               )}
               {requiresPrescription && (
-                <span className="text-[10px] px-2 py-0.5 bg-amber-50 text-amber-600 rounded-full font-medium flex-shrink-0">
-                  وصفة
-                </span>
+                <span className="text-[10px] px-2 py-0.5 bg-amber-50 text-amber-600 rounded-full font-medium flex-shrink-0">وصفة</span>
               )}
             </div>
           </div>
@@ -151,38 +107,30 @@ function PharmacyResultCard({
           {whatsapp && (
             <motion.button
               whileTap={{ scale: 0.95 }}
-              whileHover={{ scale: 1.02 }}
-              onClick={handleWhatsApp}
+              onClick={() => window.open(`https://wa.me/${whatsapp.replace(/\D/g, '')}`, '_blank')}
               className="flex-1 h-10 flex items-center justify-center gap-2 rounded-xl bg-green-500 text-white font-semibold text-sm"
-              data-testid={`button-whatsapp-${index}`}
             >
-              <MessageCircle className="w-4 h-4" />
-              واتساب
+              <MessageCircle className="w-4 h-4" />واتساب
             </motion.button>
           )}
           <motion.button
             whileTap={{ scale: 0.95 }}
-            whileHover={{ scale: 1.02 }}
             onClick={handleReserveClick}
             disabled={!isOpen || quantity === 0 || createOrder.isPending}
             className="flex-1 h-10 flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-semibold text-sm disabled:opacity-50"
             data-testid={`button-reserve-${index}`}
           >
             <ShoppingBag className="w-4 h-4" />
-            {createOrder.isPending ? "جاري الحجز..." : "احجز الآن"}
+            {createOrder.isPending ? 'جاري الحجز...' : 'احجز الآن'}
           </motion.button>
         </div>
       </motion.div>
 
-      {/* نافذة الوصفة الطبية */}
       <AnimatePresence>
         {showPrescription && (
           <PrescriptionModal
             medicationName={medicationName}
-            onConfirm={() => {
-              setShowPrescription(false);
-              doReserve();
-            }}
+            onConfirm={() => { setShowPrescription(false); doReserve(); }}
             onClose={() => setShowPrescription(false)}
           />
         )}
@@ -192,10 +140,9 @@ function PharmacyResultCard({
 }
 
 export function Search() {
-  const search = useSearch();
-  const [, setLocation] = useLocation();
-  const params = new URLSearchParams(search);
-  const q = params.get("q") || "";
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const q = searchParams.get('q') || '';
 
   const { data, isLoading } = useSearchMedications(
     { q },
@@ -204,14 +151,12 @@ export function Search() {
 
   return (
     <div className="flex-1 flex flex-col bg-muted/20">
-      {/* رأس الصفحة */}
       <div className="bg-gradient-to-br from-emerald-500 to-teal-600 px-4 pt-10 pb-6">
         <div className="flex items-center gap-3 mb-4">
           <motion.button
             whileTap={{ scale: 0.9 }}
-            onClick={() => setLocation("/")}
+            onClick={() => navigate(-1)}
             className="w-9 h-9 bg-white/20 rounded-xl flex items-center justify-center"
-            data-testid="button-back"
           >
             <ArrowRight className="w-5 h-5 text-white" />
           </motion.button>
@@ -226,9 +171,7 @@ export function Search() {
         {isLoading ? (
           <>
             <div className="animate-pulse h-20 bg-white rounded-2xl border border-slate-100" />
-            {Array.from({ length: 4 }).map((_, i) => (
-              <PharmacyResultSkeleton key={i} />
-            ))}
+            {Array.from({ length: 3 }).map((_, i) => <PharmacyResultSkeleton key={i} />)}
           </>
         ) : !data?.medication ? (
           <motion.div
@@ -242,16 +185,13 @@ export function Search() {
           </motion.div>
         ) : (
           <>
-            {/* معلومات الدواء */}
             <motion.div
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
               className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100"
             >
               <div className="flex items-center gap-3">
-                <div className="w-14 h-14 bg-gradient-to-br from-emerald-100 to-teal-200 rounded-xl flex items-center justify-center text-2xl flex-shrink-0">
-                  💊
-                </div>
+                <div className="w-14 h-14 bg-gradient-to-br from-emerald-100 to-teal-200 rounded-xl flex items-center justify-center text-2xl flex-shrink-0">💊</div>
                 <div>
                   <p className="font-bold text-slate-800 text-base">{data.medication.name}</p>
                   <p className="text-slate-400 text-xs">{data.medication.genericName}</p>
