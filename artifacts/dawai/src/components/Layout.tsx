@@ -6,7 +6,9 @@ import { useAuth } from "@/contexts/AuthContext";
 
 export function Layout({ children }: { children: ReactNode }) {
   const [location] = useLocation();
-  const { isAuthenticated, isPharmacy } = useAuth();
+  const { user } = useAuth();
+  const isAuthenticated = !!user;
+  const isPharmacy = user?.role === 'pharmacy';
 
   const isLogin = location === "/login";
   const isPharmacyDashboard = location === "/pharmacy-dashboard";

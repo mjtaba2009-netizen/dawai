@@ -27,7 +27,7 @@ const FloatingShape = ({
 export function Login() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
-  const { login, register } = useAuth();
+  const { apiLogin, apiRegister } = useAuth();
 
   const [mode, setMode] = useState<"login" | "register">("login");
   const [role, setRole] = useState<UserRole>("patient");
@@ -43,9 +43,9 @@ export function Login() {
     try {
       let authUser;
       if (mode === "login") {
-        authUser = await login(phone, password);
+        authUser = await apiLogin(phone, password);
       } else {
-        authUser = await register(name, phone, password, role);
+        authUser = await apiRegister(name, phone, password, role);
       }
       // Redirect based on role
       setLocation(authUser.role === "pharmacy" ? "/pharmacy-dashboard" : "/");

@@ -22,16 +22,14 @@ const queryClient = new QueryClient({
 });
 
 function Router() {
-  const { isAuthenticated, isPharmacy, isLoading } = useAuth();
+  const { user, loading } = useAuth();
 
-  // Wait for session restoration before rendering routes
-  if (isLoading) {
-    return (
-      <div className="min-h-[100dvh] flex items-center justify-center bg-white">
-        <div className="w-8 h-8 rounded-full border-4 border-emerald-500 border-t-transparent animate-spin" />
-      </div>
-    );
-  }
+  const isAuthenticated = !!user;
+  const isPharmacy = user?.role === 'pharmacy';
+
+  // Loading is handled by AuthProvider (!loading && children), but keep a
+  // fallback for any edge case where Router renders before context settles.
+  if (loading) return null;
 
   return (
     <Layout>

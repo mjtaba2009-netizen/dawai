@@ -1,6 +1,6 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import React, { createContext, useState, useEffect, useContext, ReactNode } from 'react';
 
-export type UserRole = "patient" | "pharmacy";
+export type UserRole = 'patient' | 'pharmacy';
 
 export interface AuthUser {
   id: number;
@@ -14,50 +14,25 @@ export interface AuthUser {
 
 interface AuthContextType {
   user: AuthUser | null;
-  isLoading: boolean;
-  isAuthenticated: boolean;
-  isPharmacy: boolean;
-  login: (phone: string, password: string) => Promise<AuthUser>;
-  register: (name: string, phone: string, password: string, role: UserRole) => Promise<AuthUser>;
+  loading: boolean;
+  login: (userData: AuthUser) => void;
   logout: () => void;
+  apiLogin: (phone: string, password: string) => Promise<AuthUser>;
+  apiRegister: (name: string, phone: string, password: string, role: UserRole) => Promise<AuthUser>;
 }
 
-const AuthContext = createContext<AuthContextType | null>(null);
+export const AuthContext = createContext<AuthContextType | null>(null);
 
-const STORAGE_KEY = "dawai_user";
-
-function loadFromStorage(): AuthUser | null {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? (JSON.parse(raw) as AuthUser) : null;
-  } catch {
-    return null;
-  }
-}
-
-function saveToStorage(user: AuthUser): void {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(user));
-  // also keep legacy keys for backward compat
-  localStorage.setItem("token", user.token);
-  localStorage.setItem("user", JSON.stringify({ id: user.id, name: user.name, phone: user.phone }));
-}
-
-function clearStorage(): void {
-  localStorage.removeItem(STORAGE_KEY);
-  localStorage.removeItem("token");
-  localStorage.removeItem("user");
-}
-
-const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
+const BASE = import.meta.env.BASE_URL.replace(/\/$/, '');
 
 async function apiPost<T>(path: string, body: object): Promise<T> {
   const res = await fetch(`${BASE}/api${path}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data?.error ?? "حدث خطأ");
+  if (!res.ok) throw new Error(data?.error ?? 'حدث خطأ');
   return data as T;
 }
 
@@ -73,40 +48,61 @@ interface ApiAuthResponse {
   };
 }
 
-export function AuthProvider({ children }: { children: ReactNode }) {
+export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<AuthUser | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [loading, setLoading] = useState(true);
 
-  // Restore session on mount
+  // عند فتح التطبيق، نتحقق هل هناك مستخدم مسجل مسبقاً في الذاكرة؟
   useEffect(() => {
-    const stored = loadFromStorage();
-    if (stored) setUser(stored);
-    setIsLoading(false);
+    const savedUser = localStorage.getItem('dawai_user');
+    if (savedUser) {
+      try {
+        setUser(JSON.parse(savedUser));
+      } catch {
+        localStorage.removeItem('dawai_user');
+      }
+    }
+    setLoading(false);
   }, []);
 
-  const login = async (phone: string, password: string): Promise<AuthUser> => {
-    const data = await apiPost<ApiAuthResponse>("/auth/login", { phone, password });
+  // دالة تسجيل الدخول المباشر (تأخذ بيانات المستخدم مباشرةً)
+  const login = (userData: AuthUser) => {
+    setUser(userData);
+    localStorage.setItem('dawai_user', JSON.stringify(userData)); // حفظ في الذاكرة
+  };
+
+  // دالة تسجيل الخروج
+  const logout = () => {
+    setUser(null);
+    localStorage.removeItem('dawai_user');
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+  };
+
+  // تسجيل الدخول عبر API
+  const apiLogin = async (phone: string, password: string): Promise<AuthUser> => {
+    const data = await apiPost<ApiAuthResponse>('/auth/login', { phone, password });
     const authUser: AuthUser = {
       id: data.user.id,
       name: data.user.name,
       phone: data.user.phone,
       avatar: data.user.avatar ?? null,
-      role: data.user.role ?? "patient",
+      role: data.user.role ?? 'patient',
       pharmacyId: data.user.pharmacyId ?? null,
       token: data.token,
     };
-    saveToStorage(authUser);
-    setUser(authUser);
+    login(authUser);
     return authUser;
   };
 
-  const register = async (
+  // إنشاء حساب جديد عبر API
+  const apiRegister = async (
     name: string,
     phone: string,
     password: string,
     role: UserRole
   ): Promise<AuthUser> => {
-    const data = await apiPost<ApiAuthResponse>("/auth/register", { name, phone, password, role });
+    const data = await apiPost<ApiAuthResponse>('/auth/register', { name, phone, password, role });
     const authUser: AuthUser = {
       id: data.user.id,
       name: data.user.name,
@@ -116,35 +112,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       pharmacyId: data.user.pharmacyId ?? null,
       token: data.token,
     };
-    saveToStorage(authUser);
-    setUser(authUser);
+    login(authUser);
     return authUser;
   };
 
-  const logout = () => {
-    clearStorage();
-    setUser(null);
-  };
-
   return (
-    <AuthContext.Provider
-      value={{
-        user,
-        isLoading,
-        isAuthenticated: !!user,
-        isPharmacy: user?.role === "pharmacy",
-        login,
-        register,
-        logout,
-      }}
-    >
-      {children}
+    <AuthContext.Provider value={{ user, login, logout, loading, apiLogin, apiRegister }}>
+      {!loading && children}
     </AuthContext.Provider>
   );
-}
+};
 
+// Hook مساعد للوصول السريع
 export function useAuth(): AuthContextType {
   const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error("useAuth must be used inside AuthProvider");
+  if (!ctx) throw new Error('useAuth must be used inside AuthProvider');
   return ctx;
 }
+
+// للتوافق مع الكود القديم
+export const isPharmacy = (user: AuthUser | null) => user?.role === 'pharmacy';
+export const isPatient = (user: AuthUser | null) => user?.role === 'patient';
