@@ -1,0 +1,35 @@
+Role & Context:
+أنت مطور Full-Stack خبير ومصمم UI/UX بمستوى عالمي، متخصص في بناء تطبيقات موجهة للجمهور (B2C) بتصاميم حديثة ومريحة للعين (Minimalist & Modern). أريد منك بناء تطبيق طبي يحمل اسم "دوائي" (Dawai)، وهو محرك بحث يربط المرضى بالصيدليات القريبة لمعرفة توفر الأدوية وأسعارها.
+
+Tech Stack:
+* Framework: React / Next.js (App Router).
+* Styling: Tailwind CSS.
+* Animations: Framer Motion.
+* Icons: FontAwesome أو Lucide React.
+* Language: TypeScript (لكتابة كود نظيف وخالٍ من الأخطاء).
+* Direction: RTL (اللغة العربية).
+
+UI/UX & Design System Requirements:
+1. Color Palette: استخدم تدرجات الأخضر الزمردي (Emerald) كلون أساسي يعبر عن الصحة، مع الأبيض النقي للبطاقات، والرمادي المائل للأزرق (Slate) للنصوص.
+2. Design Style: اعتمد أسلوب الـ Glassmorphism (تأثير الزجاج الشفاف) في أشرطة التنقل، واستخدم حواف دائرية (Rounded-2xl) للبطاقات، مع ظلال ناعمة جداً (Soft Drop Shadows).
+3. Accessibility: ألوان متباينة، خطوط واضحة (استخدم خط Cairo أو Tajawal)، وأزرار بحجم مناسب للمس (Touch-friendly).
+
+Animation Requirements (Crucial for User Comfort):
+* واجهة تسجيل الدخول (Login Screen): أريد دخولاً مبهراً. خلفية تحتوي على أشكال هندسية ناعمة تتحرك ببطء (Floating effect). نموذج تسجيل الدخول (Form) يجب أن يظهر بحركة (Fade-up) سلسة. عند التركيز (Focus) على أي حقل إدخال، يجب أن يرتفع النص التوضيحي (Floating Label) بنعومة.
+* داخل التطبيق (In-App Animations):
+  - Micro-interactions: جميع الأزرار يجب أن تصغر قليلاً عند الضغط (whileTap={{ scale: 0.95 }}) وتكبر عند تمرير الماوس (whileHover={{ scale: 1.02 }}).
+  - Staggered Lists: عند ظهور نتائج البحث (قائمة الصيدليات)، يجب ألا تظهر دفعة واحدة، بل بتسلسل انسيابي (واحدة تلو الأخرى بفارق زمني بسيط).
+  - Page Transitions: انتقال ناعم عند التبديل بين الصفحات دون وميض مزعج.
+  - Loading States: استخدم Skeleton Loaders (تأثير النبض الرمادي) بدلاً من شاشات التحميل التقليدية المزعجة.
+
+Core Pages/Components to Generate:
+1. Login/Signup Page: تصميم تفاعلي وجذاب كما ذُكر أعلاه.
+2. Home Page (Search): شريط بحث مركزي بتصميم زجاجي، مع خيار "البحث بالوصفة الطبية (صورة)"، ومؤشر للموقع الحالي.
+3. Search Results: بطاقات الصيدليات القريبة تعرض (اسم الصيدلية، المسافة، السعر، الكمية المتاحة، وزر واتساب/حجز).
+4. Bottom Navigation Bar: شريط تنقل سفلي أنيق للموبايل يحتوي على (الرئيسية، طلباتي، الإشعارات، الحساب).
+
+Execution Rules (No Bugs):
+* اكتب الكود مقسماً إلى مكونات (Components) قابلة لإعادة الاستخدام ولا تكتب كل شيء في ملف واحد.
+* تأكد من أن التصميم متجاوب 100% (Mobile-First approach).
+* ضع تعليقات (Comments) واضحة باللغة العربية لشرح الأجزاء المعقدة.
+* ابدأ بتوليد واجهة "تسجيل الدخول" أولاً، متبوعة بـ "الصفحة الرئيسية".

@@ -1,22 +1,31 @@
 openapi: 3.1.0
 info:
-  # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Dawai - Medication finder API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: auth
+    description: Authentication
+  - name: medications
+    description: Medication search and info
+  - name: pharmacies
+    description: Pharmacy listings
+  - name: orders
+    description: User orders
+  - name: notifications
+    description: User notifications
+
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,6 +33,273 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /auth/login:
+    post:
+      operationId: login
+      tags: [auth]
+      summary: Login user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginInput"
+      responses:
+        "200":
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "401":
+          description: Invalid credentials
+
+  /auth/register:
+    post:
+      operationId: register
+      tags: [auth]
+      summary: Register new user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterInput"
+      responses:
+        "201":
+          description: Registration successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+
+  /medications/search:
+    get:
+      operationId: searchMedications
+      tags: [medications]
+      summary: Search medications and find nearby pharmacies
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Medication name or active ingredient
+        - name: lat
+          in: query
+          schema:
+            type: number
+        - name: lng
+          in: query
+          schema:
+            type: number
+        - name: radius
+          in: query
+          schema:
+            type: number
+            default: 5
+          description: Search radius in km
+      responses:
+        "200":
+          description: Search results
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MedicationSearchResult"
+
+  /medications/popular:
+    get:
+      operationId: getPopularMedications
+      tags: [medications]
+      summary: Get popular/trending medications
+      responses:
+        "200":
+          description: Popular medications list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Medication"
+
+  /medications/{id}:
+    get:
+      operationId: getMedication
+      tags: [medications]
+      summary: Get medication details
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Medication details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Medication"
+        "404":
+          description: Not found
+
+  /pharmacies/nearby:
+    get:
+      operationId: getNearbyPharmacies
+      tags: [pharmacies]
+      summary: Get nearby pharmacies
+      parameters:
+        - name: lat
+          in: query
+          schema:
+            type: number
+        - name: lng
+          in: query
+          schema:
+            type: number
+        - name: radius
+          in: query
+          schema:
+            type: number
+            default: 5
+      responses:
+        "200":
+          description: Nearby pharmacies
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Pharmacy"
+
+  /pharmacies/{id}:
+    get:
+      operationId: getPharmacy
+      tags: [pharmacies]
+      summary: Get pharmacy details
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Pharmacy details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Pharmacy"
+        "404":
+          description: Not found
+
+  /pharmacies/{id}/medications:
+    get:
+      operationId: getPharmacyMedications
+      tags: [pharmacies]
+      summary: Get all medications available at a pharmacy
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Pharmacy medication inventory
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PharmacyMedication"
+
+  /orders:
+    get:
+      operationId: getOrders
+      tags: [orders]
+      summary: Get user's orders
+      responses:
+        "200":
+          description: User orders
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Order"
+    post:
+      operationId: createOrder
+      tags: [orders]
+      summary: Create a medication reservation/order
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OrderInput"
+      responses:
+        "201":
+          description: Order created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+
+  /orders/{id}:
+    get:
+      operationId: getOrder
+      tags: [orders]
+      summary: Get order details
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Order details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+
+  /notifications:
+    get:
+      operationId: getNotifications
+      tags: [notifications]
+      summary: Get user notifications
+      responses:
+        "200":
+          description: Notifications list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Notification"
+
+  /notifications/{id}/read:
+    patch:
+      operationId: markNotificationRead
+      tags: [notifications]
+      summary: Mark notification as read
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Notification marked as read
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Notification"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +310,183 @@ components:
       required:
         - status
 
+    LoginInput:
+      type: object
+      required: [phone, password]
+      properties:
+        phone:
+          type: string
+        password:
+          type: string
+
+    RegisterInput:
+      type: object
+      required: [name, phone, password]
+      properties:
+        name:
+          type: string
+        phone:
+          type: string
+        password:
+          type: string
+
+    AuthResponse:
+      type: object
+      required: [token, user]
+      properties:
+        token:
+          type: string
+        user:
+          $ref: "#/components/schemas/User"
+
+    User:
+      type: object
+      required: [id, name, phone]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        phone:
+          type: string
+        avatar:
+          type: ["string", "null"]
+
+    Medication:
+      type: object
+      required: [id, name, genericName, category]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+          description: Trade name in Arabic
+        genericName:
+          type: string
+          description: Generic/scientific name
+        category:
+          type: string
+        description:
+          type: ["string", "null"]
+        requiresPrescription:
+          type: boolean
+        imageUrl:
+          type: ["string", "null"]
+
+    PharmacyMedication:
+      type: object
+      required: [id, medicationId, pharmacyId, price, quantity, medication]
+      properties:
+        id:
+          type: integer
+        medicationId:
+          type: integer
+        pharmacyId:
+          type: integer
+        price:
+          type: number
+          description: Price in SAR
+        quantity:
+          type: integer
+          description: Available stock
+        medication:
+          $ref: "#/components/schemas/Medication"
+
+    Pharmacy:
+      type: object
+      required: [id, name, address, distance, isOpen, phone]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        address:
+          type: string
+        distance:
+          type: number
+          description: Distance in km
+        isOpen:
+          type: boolean
+        phone:
+          type: string
+        whatsapp:
+          type: ["string", "null"]
+        rating:
+          type: ["number", "null"]
+        lat:
+          type: ["number", "null"]
+        lng:
+          type: ["number", "null"]
+        imageUrl:
+          type: ["string", "null"]
+
+    MedicationSearchResult:
+      type: object
+      required: [medication, pharmacies]
+      properties:
+        medication:
+          $ref: "#/components/schemas/Medication"
+        pharmacies:
+          type: array
+          items:
+            $ref: "#/components/schemas/PharmacySearchHit"
+
+    PharmacySearchHit:
+      type: object
+      required: [pharmacy, price, quantity]
+      properties:
+        pharmacy:
+          $ref: "#/components/schemas/Pharmacy"
+        price:
+          type: number
+        quantity:
+          type: integer
+
+    OrderInput:
+      type: object
+      required: [pharmacyId, medicationId, quantity]
+      properties:
+        pharmacyId:
+          type: integer
+        medicationId:
+          type: integer
+        quantity:
+          type: integer
+
+    Order:
+      type: object
+      required: [id, status, createdAt, medication, pharmacy, quantity, totalPrice]
+      properties:
+        id:
+          type: integer
+        status:
+          type: string
+          enum: [pending, confirmed, ready, completed, cancelled]
+        createdAt:
+          type: string
+        medication:
+          $ref: "#/components/schemas/Medication"
+        pharmacy:
+          $ref: "#/components/schemas/Pharmacy"
+        quantity:
+          type: integer
+        totalPrice:
+          type: number
+
+    Notification:
+      type: object
+      required: [id, title, message, isRead, createdAt, type]
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        message:
+          type: string
+        isRead:
+          type: boolean
+        createdAt:
+          type: string
+        type:
+          type: string
+          enum: [order_update, promotion, system]

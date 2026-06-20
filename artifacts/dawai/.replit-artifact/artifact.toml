@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "دوائي - Dawai"
+version = "1.0.0"
+id = "artifacts/dawai"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 23510
+
+[services.development]
+run = "pnpm --filter @workspace/dawai run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/dawai", "run", "build" ]
+publicDir = "artifacts/dawai/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "23510"
+BASE_PATH = "/"
