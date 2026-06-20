@@ -15,7 +15,7 @@ import { AuthContext } from '@/contexts/AuthContext';
 function Sheet({ onClose, children }: { onClose: () => void; children: React.ReactNode }) {
   return (
     <motion.div
-      className="fixed inset-0 z-50 flex items-end justify-center"
+      className="fixed inset-0 z-[100] flex items-end justify-center"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
@@ -23,7 +23,7 @@ function Sheet({ onClose, children }: { onClose: () => void; children: React.Rea
     >
       <motion.div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
       <motion.div
-        className="relative w-full max-w-[430px] rounded-t-3xl bg-white/92 backdrop-blur-2xl border-t border-white/60 shadow-2xl overflow-hidden"
+        className="relative w-full max-w-[430px] rounded-t-3xl bg-white/92 backdrop-blur-2xl border-t border-white/60 shadow-2xl max-h-[85vh] overflow-y-auto pb-8"
         initial={{ y: '100%' }}
         animate={{ y: 0 }}
         exit={{ y: '100%' }}
