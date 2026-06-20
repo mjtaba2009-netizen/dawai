@@ -1,11 +1,13 @@
-import React, { useContext } from 'react';
+import React, { useContext, useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { AnimatePresence } from 'framer-motion';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { AuthContext, AuthProvider } from '@/contexts/AuthContext';
 import { OrderAutomationProvider } from '@/contexts/OrderAutomationContext';
 import { OrderAutomationManager } from '@/components/OrderAutomationManager';
+import { SplashIntro } from '@/components/SplashIntro';
 import { Layout } from '@/components/Layout';
 
 // Pages
@@ -16,7 +18,6 @@ import { Orders } from '@/pages/Orders';
 import { Notifications } from '@/pages/Notifications';
 import { Account } from '@/pages/Account';
 import { PharmacyDashboard } from '@/pages/PharmacyDashboard';
-import NotFound from '@/pages/not-found';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -56,18 +57,36 @@ const AppRoutes = () => {
 };
 
 export default function App() {
+  // شاشة الترحيب — تُعرض عند فتح التطبيق لمرة واحدة
+  const [showIntro, setShowIntro] = useState(true);
+
+  useEffect(() => {
+    // تختفي الشاشة بعد 3.5 ثانية — يكفي لإتمام تسلسل الحركة
+    const timer = setTimeout(() => setShowIntro(false), 3500);
+    return () => clearTimeout(timer); // Cleanup لمنع Memory Leak
+  }, []);
+
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <AuthProvider>
           <OrderAutomationProvider>
             <BrowserRouter basename={import.meta.env.BASE_URL}>
+
+              {/* ── شاشة الترحيب — خارج Layout لتغطي كامل الشاشة ── */}
+              <AnimatePresence mode="wait">
+                {showIntro && <SplashIntro key="splash" />}
+              </AnimatePresence>
+
+              {/* ── المحتوى الرئيسي — يُحمَّل في الخلفية أثناء الـ Splash ── */}
               <Layout>
                 <AppRoutes />
               </Layout>
-              {/* لوحة الأتمتة العائمة — تظهر عند وجود طلبات جارية */}
+
+              {/* لوحة الأتمتة العائمة */}
               <OrderAutomationManager />
               <Toaster />
+
             </BrowserRouter>
           </OrderAutomationProvider>
         </AuthProvider>
