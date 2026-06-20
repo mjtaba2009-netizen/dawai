@@ -384,3 +384,23 @@
     inset: -1px;
   }
 }
+
+/* ──────────────────────────────────────────────────────────────
+   Native app feel (Capacitor) — disable tap highlight, long-press
+   callouts, and text selection globally; re-enable selection inside
+   form fields so users can still edit/copy their input.
+   ────────────────────────────────────────────────────────────── */
+* {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+input,
+textarea,
+select,
+[contenteditable="true"] {
+  -webkit-user-select: text;
+  user-select: text;
+}

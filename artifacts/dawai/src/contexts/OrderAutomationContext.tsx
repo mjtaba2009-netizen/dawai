@@ -136,7 +136,9 @@ function reducer(state: AutomationState, action: Action): AutomationState {
 // ═══════════════════════════════════════════════════════════════
 // API helpers — مسارات محلية حقيقية
 // ═══════════════════════════════════════════════════════════════
-const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
+import { API_PREFIX } from "@/lib/api-base";
+
+const BASE = API_PREFIX;
 
 interface ApiResult<T = unknown> {
   ok:    boolean;

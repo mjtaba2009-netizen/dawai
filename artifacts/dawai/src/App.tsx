@@ -11,6 +11,7 @@ import { OrderAutomationManager } from '@/components/OrderAutomationManager';
 import { SplashIntro } from '@/components/SplashIntro';
 import { PartnershipAgreementModal } from '@/components/PartnershipAgreementModal';
 import { Layout } from '@/components/Layout';
+import { ROUTER_BASENAME } from '@/lib/api-base';
 
 // Pages
 import { Login } from '@/pages/Login';
@@ -83,7 +84,7 @@ export default function App() {
         <AuthProvider>
           <CartProvider>
             <OrderAutomationProvider>
-              <BrowserRouter basename={import.meta.env.BASE_URL}>
+              <BrowserRouter basename={ROUTER_BASENAME}>
 
                 {/* ── شاشة الترحيب — خارج Layout لتغطي كامل الشاشة ── */}
                 <AnimatePresence mode="wait">

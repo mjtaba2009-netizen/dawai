@@ -1,4 +1,5 @@
 import React, { createContext, useState, useEffect, useContext, ReactNode } from 'react';
+import { API_PREFIX } from '@/lib/api-base';
 
 export type UserRole = 'patient' | 'pharmacy';
 
@@ -31,7 +32,7 @@ interface AuthContextType {
 
 export const AuthContext = createContext<AuthContextType | null>(null);
 
-const BASE = import.meta.env.BASE_URL.replace(/\/$/, '');
+const BASE = API_PREFIX;
 
 async function apiPost<T>(path: string, body: object, token?: string): Promise<T> {
   const res = await fetch(`${BASE}/api${path}`, {

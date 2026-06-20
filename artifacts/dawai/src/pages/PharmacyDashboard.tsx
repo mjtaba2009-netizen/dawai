@@ -6,6 +6,7 @@
  *   2. "المخزون"         — إضافة / تعديل / حذف
  */
 import { useState, useEffect, useCallback, useRef } from "react";
+import { API_PREFIX } from "@/lib/api-base";
 import { motion, AnimatePresence } from "framer-motion";
 import confetti from "canvas-confetti";
 import { Plus, Pencil, Trash2, X, Package, ShoppingBag, Check, Clock, BadgeCheck, Sparkles } from "lucide-react";
@@ -144,7 +145,7 @@ interface PharmacyOrder {
 // ═══════════════════════════════════════════════════════════════════
 // usePharmacyApi — مساعد طلبات HTTP مع Bearer token
 // ═══════════════════════════════════════════════════════════════════
-const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
+const BASE = API_PREFIX;
 
 function usePharmacyApi(token: string | undefined) {
   const h = { "Content-Type": "application/json", Authorization: `Bearer ${token ?? ""}` };

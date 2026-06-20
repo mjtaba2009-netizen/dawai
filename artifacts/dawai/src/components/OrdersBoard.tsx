@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
+import { API_PREFIX } from '@/lib/api-base';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Clock, ShieldCheck, ChevronLeft, CheckCircle2, Inbox } from 'lucide-react';
 
-const BASE = import.meta.env.BASE_URL.replace(/\/$/, '');
+const BASE = API_PREFIX;
 
 interface KanbanOrder {
   id: number;
