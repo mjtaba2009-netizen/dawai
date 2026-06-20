@@ -148,7 +148,9 @@ export function Login() {
   const [password, setPassword] = useState('');
 
   // ── حقول المريض ──────────────────────────────────────────
-  const [patientName, setPatientName] = useState('');
+  const [patientName, setPatientName]       = useState('');
+  const [patientGov, setPatientGov]         = useState('');
+  const [patientAddress, setPatientAddress] = useState('');
 
   // ── حقول الصيدلية (KYC) ──────────────────────────────────
   const [pharFullName, setPharFullName]   = useState('');
@@ -157,17 +159,23 @@ export function Login() {
   const [pharAddress, setPharAddress]     = useState('');
   const [pharGov, setPharGov]             = useState('');
 
-  // ── Geolocation: يُفعَّل عند ظهور نموذج الصيدلية ─────────
+  // ── Geolocation: يُفعَّل عند تسجيل مريض أو صيدلية ──────────
   useEffect(() => {
-    if (mode !== 'register' || role !== 'pharmacy') return;
+    if (mode !== 'register') return;
     if (!navigator.geolocation) return;
     setGovLoading(true);
     navigator.geolocation.getCurrentPosition(
       ({ coords }) => {
-        setPharGov(detectGovernorate(coords.latitude, coords.longitude));
+        const gov = detectGovernorate(coords.latitude, coords.longitude);
+        if (role === 'pharmacy') setPharGov(gov);
+        else setPatientGov(gov);
         setGovLoading(false);
       },
-      () => { setPharGov(''); setGovLoading(false); },
+      () => {
+        if (role === 'pharmacy') setPharGov('');
+        else setPatientGov('');
+        setGovLoading(false);
+      },
       { timeout: 8000, maximumAge: 60000 }
     );
   }, [mode, role]);
@@ -310,13 +318,74 @@ export function Login() {
                   exit={{ opacity: 0, height: 0 }}
                   className="space-y-3 overflow-hidden"
                 >
-                  {/* الاسم — عند تسجيل مريض فقط */}
+                  {/* الاسم + المحافظة + العنوان — عند تسجيل مريض فقط */}
                   {mode === 'register' && (
-                    <Field label="الاسم الكامل">
-                      <input className={inputCls} placeholder="أدخل اسمك الكامل"
-                        value={patientName} onChange={e => setPatientName(e.target.value)}
-                        required data-testid="input-name" dir="rtl" />
-                    </Field>
+                    <>
+                      <Field label="الاسم الكامل">
+                        <input className={inputCls} placeholder="أدخل اسمك الكامل"
+                          value={patientName} onChange={e => setPatientName(e.target.value)}
+                          required data-testid="input-name" dir="rtl" />
+                      </Field>
+
+                      {/* المحافظة + Geolocation spinner */}
+                      <div className="flex flex-col gap-1">
+                        <div className="flex items-center gap-2">
+                          <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                            المحافظة
+                          </label>
+                          <AnimatePresence>
+                            {govLoading && (
+                              <motion.span
+                                key="pat-gov-spinner"
+                                initial={{ opacity: 0, scale: 0.6 }}
+                                animate={{ opacity: 1, scale: 1, rotate: 360 }}
+                                exit={{ opacity: 0, scale: 0.6 }}
+                                transition={{
+                                  rotate: { duration: 0.9, repeat: Infinity, ease: 'linear' },
+                                  opacity: { duration: 0.2 },
+                                }}
+                                className="w-3.5 h-3.5 rounded-full border-2 border-emerald-400 border-t-transparent inline-block"
+                                style={{ display: 'inline-block' }}
+                              />
+                            )}
+                          </AnimatePresence>
+                          {!govLoading && patientGov && (
+                            <motion.span
+                              initial={{ opacity: 0, x: 4 }}
+                              animate={{ opacity: 1, x: 0 }}
+                              className="text-[10px] text-emerald-600 font-medium bg-emerald-50 px-1.5 py-0.5 rounded-full"
+                            >
+                              تم الكشف تلقائياً
+                            </motion.span>
+                          )}
+                        </div>
+                        <select
+                          className={inputCls + ' cursor-pointer'}
+                          value={patientGov}
+                          onChange={e => setPatientGov(e.target.value)}
+                          disabled={govLoading}
+                          style={{
+                            backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E\")",
+                            backgroundRepeat: 'no-repeat', backgroundPosition: 'left 10px center', backgroundSize: '14px',
+                            paddingLeft: '32px',
+                          }}
+                        >
+                          <option value="">اختر المحافظة</option>
+                          {[
+                            'بغداد','البصرة','نينوى','أربيل','السليمانية','دهوك','كركوك',
+                            'النجف','كربلاء','بابل','ذي قار','ميسان','الأنبار','ديالى',
+                            'صلاح الدين','المثنى','القادسية','واسط',
+                          ].map(g => (
+                            <option key={g} value={g}>{g}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <Field label="العنوان التفصيلي">
+                        <input className={inputCls} placeholder="الشارع، الحي، المنطقة..." dir="rtl"
+                          value={patientAddress} onChange={e => setPatientAddress(e.target.value)} />
+                      </Field>
+                    </>
                   )}
 
                   <Field label="رقم الجوال">
