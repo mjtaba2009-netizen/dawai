@@ -1,13 +1,14 @@
 import { useState, useContext, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { Search, Camera, MapPin, ChevronLeft, Pill, Store } from 'lucide-react';
+import { Search, Camera, MapPin, ChevronLeft, Pill, Store, ShoppingCart } from 'lucide-react';
 import {
   useGetPopularMedications,
   useGetNearbyPharmacies,
 } from '@workspace/api-client-react';
 import { AuthContext } from '@/contexts/AuthContext';
 import { PrescriptionModal } from '@/components/PrescriptionModal';
+import { useToast } from '@/hooks/use-toast';
 
 // ── Geolocation: حدود المحافظات العراقية ─────────────────────
 const IRAQ_GOV_BOUNDS = [
@@ -39,12 +40,12 @@ function detectGovernorate(lat: number, lng: number): string {
   return '';
 }
 
-// ── مكون Skeleton ─────────────────────────────────────────────
+// ── Skeleton ─────────────────────────────────────────────────
 function SkeletonCard({ className = '' }: { className?: string }) {
   return <div className={`animate-pulse bg-slate-100 rounded-2xl ${className}`} />;
 }
 
-// ── مكون الحالة الفارغة ───────────────────────────────────────
+// ── الحالة الفارغة ────────────────────────────────────────────
 function EmptyState({ emoji, title, sub }: { emoji: string; title: string; sub: string }) {
   return (
     <motion.div
@@ -63,24 +64,25 @@ function EmptyState({ emoji, title, sub }: { emoji: string; title: string; sub: 
 
 // ── بطاقة الدواء ──────────────────────────────────────────────
 function MedicationCard({
-  name, genericName, category, requiresPrescription, index,
+  name, genericName, category, requiresPrescription, index, onOrder,
 }: {
   name: string; genericName: string; category: string;
   requiresPrescription: boolean; index: number;
+  onOrder: () => void;
 }) {
   return (
     <motion.div
       initial={{ opacity: 0, x: 20 }}
       animate={{ opacity: 1, x: 0 }}
       transition={{ delay: index * 0.07, duration: 0.4 }}
-      className="flex-shrink-0 w-36 bg-white rounded-2xl p-3 shadow-sm border border-slate-100"
+      className="flex-shrink-0 w-36 bg-white rounded-2xl p-3 shadow-sm border border-slate-100 flex flex-col"
     >
       <div className="w-full h-20 bg-gradient-to-br from-emerald-50 to-teal-100 rounded-xl mb-3 flex items-center justify-center">
         <Pill className="w-8 h-8 text-emerald-500" />
       </div>
       <p className="text-slate-800 font-semibold text-sm leading-tight mb-1 truncate">{name}</p>
-      <p className="text-slate-400 text-xs truncate">{genericName}</p>
-      <div className="flex items-center gap-1 mt-2">
+      <p className="text-slate-400 text-xs truncate mb-2">{genericName}</p>
+      <div className="flex items-center gap-1 mb-3">
         <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-medium">
           {category}
         </span>
@@ -90,6 +92,21 @@ function MedicationCard({
           </span>
         )}
       </div>
+
+      {/* زر الطلب */}
+      <motion.button
+        whileTap={{ scale: 0.93 }}
+        onClick={onOrder}
+        className={`mt-auto w-full h-8 rounded-xl text-xs font-bold flex items-center justify-center gap-1
+          ${requiresPrescription
+            ? 'bg-amber-500 text-white shadow-[0_2px_8px_rgba(245,158,11,0.35)]'
+            : 'bg-emerald-500 text-white shadow-[0_2px_8px_rgba(16,185,129,0.35)]'
+          }`}
+        data-testid={`button-order-${name}`}
+      >
+        <ShoppingCart className="w-3 h-3" />
+        {requiresPrescription ? 'طلب بوصفة' : 'طلب'}
+      </motion.button>
     </motion.div>
   );
 }
@@ -133,18 +150,20 @@ function PharmacyCard({
 
 // ═══════════════════════════════════════════════════════════════
 export function Home() {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [locationLabel, setLocationLabel] = useState('Gmunden');
-  const [locLoading, setLocLoading]       = useState(true);
-  const [showPrescription, setShowPrescription] = useState(false);
+  const [searchQuery,      setSearchQuery]      = useState('');
+  const [locationLabel,    setLocationLabel]    = useState('Gmunden');
+  const [locLoading,       setLocLoading]       = useState(true);
+  // الدواء الذي فعَّل نافذة الوصفة (null = مغلق)
+  const [prescriptionMed,  setPrescriptionMed]  = useState<string | null>(null);
 
   const navigate = useNavigate();
   const auth     = useContext(AuthContext);
+  const { toast } = useToast();
 
   const { data: popularMeds,      isLoading: loadingMeds }       = useGetPopularMedications();
   const { data: nearbyPharmacies, isLoading: loadingPharmacies } = useGetNearbyPharmacies();
 
-  // كشف الموقع الجغرافي لعرض المحافظة الحقيقية
+  // ── كشف الموقع الجغرافي ──────────────────────────────────────
   useEffect(() => {
     if (!navigator.geolocation) { setLocLoading(false); return; }
     navigator.geolocation.getCurrentPosition(
@@ -160,8 +179,31 @@ export function Home() {
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    if (searchQuery.trim()) {
+    if (searchQuery.trim())
       navigate(`/search?q=${encodeURIComponent(searchQuery.trim())}`);
+  };
+
+  // ── البحث البصري (كاميرا شريط البحث) ──────────────────────────
+  const handleVisualSearch = () => {
+    toast({
+      title: '📷 البحث البصري',
+      description: 'التقط صورة للمنتج للعثور على أدوية مشابهة',
+      duration: 3000,
+    });
+  };
+
+  // ── منطق الطلب: وصفة أم مباشر ──────────────────────────────
+  const handleOrder = (medName: string, requiresPrescription: boolean) => {
+    if (requiresPrescription) {
+      // ← افتح نافذة رفع الوصفة للدواء المحدد
+      setPrescriptionMed(medName);
+    } else {
+      // ← أضف للسلة مباشرةً
+      toast({
+        title: '✅ تمت إضافة الطلب',
+        description: `${medName} في طريقه إليك`,
+        duration: 3000,
+      });
     }
   };
 
@@ -219,13 +261,14 @@ export function Home() {
                   className="flex-1 bg-transparent text-white placeholder-white/60 font-medium text-base outline-none px-3 text-right"
                   data-testid="input-search"
                 />
-                {/* زر الكاميرا — يفتح نافذة رفع الوصفة */}
+                {/* زر الكاميرا — بحث بصري فقط، منفصل تماماً عن الوصفة */}
                 <motion.button
                   type="button"
                   whileTap={{ scale: 0.88 }}
-                  onClick={() => setShowPrescription(true)}
+                  onClick={handleVisualSearch}
                   className="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-xl bg-white/20 hover:bg-white/30 transition-colors"
                   data-testid="button-camera"
+                  title="البحث البصري"
                 >
                   <Camera className="w-4 h-4 text-white" />
                 </motion.button>
@@ -270,7 +313,7 @@ export function Home() {
             <div className="flex gap-3 overflow-x-auto pb-2 no-scrollbar">
               {loadingMeds
                 ? Array.from({ length: 4 }).map((_, i) => (
-                    <SkeletonCard key={i} className="w-36 h-36 flex-shrink-0" />
+                    <SkeletonCard key={i} className="w-36 h-40 flex-shrink-0" />
                   ))
                 : popularMeds && popularMeds.length > 0
                   ? popularMeds.map((med, i) => (
@@ -281,6 +324,9 @@ export function Home() {
                         category={med.category}
                         requiresPrescription={med.requiresPrescription ?? false}
                         index={i}
+                        onOrder={() =>
+                          handleOrder(med.name, med.requiresPrescription ?? false)
+                        }
                       />
                     ))
                   : (
@@ -337,13 +383,13 @@ export function Home() {
         </div>
       </div>
 
-      {/* ── نافذة رفع الوصفة الطبية ── */}
+      {/* ── نافذة الوصفة الطبية — تُفتح فقط عند الطلب من بطاقة دواء يستلزم وصفة ── */}
       <AnimatePresence>
-        {showPrescription && (
+        {prescriptionMed !== null && (
           <PrescriptionModal
-            medicationName="وصفة طبية"
-            onConfirm={() => setShowPrescription(false)}
-            onClose={() => setShowPrescription(false)}
+            medicationName={prescriptionMed}
+            onConfirm={() => setPrescriptionMed(null)}
+            onClose={() => setPrescriptionMed(null)}
           />
         )}
       </AnimatePresence>

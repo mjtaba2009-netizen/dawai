@@ -82,6 +82,10 @@ export function PrescriptionModal({ medicationName, onConfirm, onClose }: Prescr
     setIsSubmitting(true);
     setTimeout(() => {
       setIsSubmitting(false);
+      toast({
+        title: "رجاءً قم باحضار الوصفة معك لاستلام الدواء",
+        duration: 4000,
+      });
       onConfirm();
     }, 800);
   };
