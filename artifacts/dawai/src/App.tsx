@@ -34,24 +34,24 @@ const AppRoutes = () => {
     );
   }
 
-  // إذا كان مسجلاً، وجهه حسب نوع حسابه (صيدلية أو مريض)
+  // جميع المستخدمين يصلون لصفحات المريض
+  // الصيدلية تضاف لها /dashboard إضافةً لذلك
   return (
     <Routes>
-      {user.role === 'pharmacy' ? (
-        <>
-          <Route path="/dashboard" element={<PharmacyDashboard />} />
-          <Route path="*" element={<Navigate to="/dashboard" replace />} />
-        </>
-      ) : (
-        <>
-          <Route path="/home"          element={<Home />} />
-          <Route path="/search"        element={<Search />} />
-          <Route path="/orders"        element={<Orders />} />
-          <Route path="/notifications" element={<Notifications />} />
-          <Route path="/account"       element={<Account />} />
-          <Route path="*"              element={<Navigate to="/home" replace />} />
-        </>
+      <Route path="/home"          element={<Home />} />
+      <Route path="/search"        element={<Search />} />
+      <Route path="/orders"        element={<Orders />} />
+      <Route path="/notifications" element={<Notifications />} />
+      <Route path="/account"       element={<Account />} />
+
+      {user.role === 'pharmacy' && (
+        <Route path="/dashboard" element={<PharmacyDashboard />} />
       )}
+
+      <Route
+        path="*"
+        element={<Navigate to={user.role === 'pharmacy' ? '/dashboard' : '/home'} replace />}
+      />
     </Routes>
   );
 };

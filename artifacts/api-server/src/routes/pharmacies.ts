@@ -97,9 +97,62 @@ const UpsertInventoryBody = z.object({
   quantity: z.number().int().min(0),
 });
 
+const AddCustomMedicationBody = z.object({
+  medicationName: z.string().min(1),
+  price: z.number().positive(),
+  quantity: z.number().int().min(0),
+  requiresPrescription: z.boolean().default(false),
+});
+
 const UpdateInventoryBody = z.object({
   price: z.number().positive().optional(),
   quantity: z.number().int().min(0).optional(),
+});
+
+// POST /pharmacy/inventory/add-custom — إضافة دواء جديد بإدخال نصي حر
+router.post("/pharmacy/inventory/add-custom", async (req, res): Promise<void> => {
+  const user = await getAuthUser(req as Parameters<typeof getAuthUser>[0]);
+  if (!user || user.role !== "pharmacy" || !user.pharmacyId) {
+    res.status(403).json({ error: "غير مصرح" }); return;
+  }
+
+  const parsed = AddCustomMedicationBody.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
+
+  const { medicationName, price, quantity, requiresPrescription } = parsed.data;
+
+  // البحث عن دواء بنفس الاسم أولاً (case-insensitive)
+  const { ilike } = await import("drizzle-orm");
+  const [existing] = await db
+    .select()
+    .from(medicationsTable)
+    .where(ilike(medicationsTable.name, medicationName))
+    .limit(1);
+
+  let medicationId: number;
+  if (existing) {
+    medicationId = existing.id;
+  } else {
+    // إنشاء سجل دواء جديد
+    const [newMed] = await db
+      .insert(medicationsTable)
+      .values({
+        name: medicationName,
+        genericName: medicationName,
+        category: "أخرى",
+        requiresPrescription,
+      })
+      .returning();
+    medicationId = newMed.id;
+  }
+
+  // إضافة الدواء لمخزون الصيدلية
+  const [row] = await db
+    .insert(pharmacyMedicationsTable)
+    .values({ pharmacyId: user.pharmacyId!, medicationId, price, quantity })
+    .returning();
+
+  res.status(201).json(row);
 });
 
 // GET /pharmacy/inventory — قائمة مخزون الصيدلية

@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, Pencil, Trash2, X, Package, ChevronDown } from "lucide-react";
+import { Plus, Pencil, Trash2, X, Package } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
+import { AddMedicineForm } from "@/components/AddMedicineForm";
 
 interface InventoryItem {
   id: number;
@@ -227,11 +228,16 @@ export function PharmacyDashboard() {
     fetchAllMeds();
   }, []);
 
-  const handleAdd = async (data: { medicationId?: number; price: number; quantity: number }) => {
+  const handleAddCustom = async (data: {
+    medicationName: string;
+    price: number;
+    quantity: number;
+    requiresPrescription: boolean;
+  }) => {
     try {
-      await api.post("/api/pharmacy/inventory", data);
+      await api.post("/api/pharmacy/inventory/add-custom", data);
       await fetchInventory();
-      toast({ title: "تم إضافة الدواء بنجاح" });
+      toast({ title: "✅ تمت إضافة الدواء بنجاح", description: `تم إضافة "${data.medicationName}" للمخزون` });
     } catch (err) {
       toast({ title: "خطأ في الإضافة", description: String(err), variant: "destructive" });
       throw err;
@@ -369,17 +375,22 @@ export function PharmacyDashboard() {
         )}
       </div>
 
-      {/* نافذة الإضافة / التعديل */}
+      {/* نموذج إضافة دواء جديد */}
       <AnimatePresence>
-        {editingItem !== null && (
+        {editingItem === "new" && (
+          <AddMedicineForm
+            onAdd={handleAddCustom}
+            onClose={() => setEditingItem(null)}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* نافذة تعديل دواء موجود */}
+      <AnimatePresence>
+        {editingItem !== null && editingItem !== "new" && (
           <ItemFormModal
-            item={editingItem === "new" ? null : editingItem}
-            allMeds={allMeds}
-            onSave={
-              editingItem === "new"
-                ? handleAdd
-                : (data) => handleEdit((editingItem as InventoryItem).id, data as { price: number; quantity: number })
-            }
+            item={editingItem}
+            onSave={(data) => handleEdit((editingItem as InventoryItem).id, data)}
             onClose={() => setEditingItem(null)}
           />
         )}
