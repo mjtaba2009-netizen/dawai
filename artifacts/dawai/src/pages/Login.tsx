@@ -1,4 +1,4 @@
-import { useState, useRef, useContext, useCallback } from 'react';
+import { useState, useRef, useContext, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { AuthContext, UserRole } from '@/contexts/AuthContext';
@@ -7,6 +7,37 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { User, Store } from 'lucide-react';
+
+// ── حدود المحافظات العراقية (Geolocation Bounding Boxes) ──────
+const IRAQ_GOV_BOUNDS = [
+  { name: 'بغداد',       latMin: 33.05, latMax: 33.65, lngMin: 44.10, lngMax: 44.65 },
+  { name: 'البصرة',      latMin: 29.50, latMax: 31.50, lngMin: 46.50, lngMax: 48.50 },
+  { name: 'نينوى',       latMin: 35.50, latMax: 37.40, lngMin: 41.50, lngMax: 43.80 },
+  { name: 'أربيل',       latMin: 35.70, latMax: 37.20, lngMin: 43.50, lngMax: 45.30 },
+  { name: 'السليمانية',  latMin: 34.50, latMax: 36.50, lngMin: 44.50, lngMax: 46.30 },
+  { name: 'دهوك',        latMin: 36.50, latMax: 37.40, lngMin: 42.50, lngMax: 44.00 },
+  { name: 'كركوك',       latMin: 34.50, latMax: 35.80, lngMin: 43.50, lngMax: 45.10 },
+  { name: 'النجف',       latMin: 29.50, latMax: 32.20, lngMin: 43.00, lngMax: 44.30 },
+  { name: 'كربلاء',      latMin: 32.20, latMax: 33.10, lngMin: 43.00, lngMax: 44.50 },
+  { name: 'بابل',        latMin: 32.00, latMax: 33.20, lngMin: 44.00, lngMax: 45.20 },
+  { name: 'ذي قار',      latMin: 30.50, latMax: 32.00, lngMin: 45.50, lngMax: 47.00 },
+  { name: 'ميسان',       latMin: 31.00, latMax: 32.50, lngMin: 46.50, lngMax: 48.00 },
+  { name: 'الأنبار',     latMin: 32.00, latMax: 34.50, lngMin: 38.00, lngMax: 44.00 },
+  { name: 'ديالى',       latMin: 33.50, latMax: 34.50, lngMin: 44.50, lngMax: 46.50 },
+  { name: 'صلاح الدين',  latMin: 33.50, latMax: 35.50, lngMin: 43.00, lngMax: 45.00 },
+  { name: 'المثنى',      latMin: 28.50, latMax: 31.50, lngMin: 43.50, lngMax: 47.00 },
+  { name: 'القادسية',    latMin: 31.50, latMax: 32.50, lngMin: 44.00, lngMax: 46.00 },
+  { name: 'واسط',        latMin: 32.00, latMax: 33.50, lngMin: 45.50, lngMax: 47.00 },
+];
+
+function detectGovernorate(lat: number, lng: number): string {
+  for (const g of IRAQ_GOV_BOUNDS) {
+    if (lat >= g.latMin && lat <= g.latMax && lng >= g.lngMin && lng <= g.lngMax) {
+      return g.name;
+    }
+  }
+  return ''; // خارج العراق أو غير معروف → اختيار يدوي
+}
 
 // ── الخلفية المتحركة ──────────────────────────────────────────
 const FloatingShape = ({ className, delay, duration }: {
@@ -109,7 +140,8 @@ export function Login() {
   const [mode, setMode]       = useState<'login' | 'register'>('login');
   const [role, setRole]       = useState<UserRole>('patient');
   const [isLoading, setIsLoading] = useState(false);
-  const [showGps, setShowGps] = useState(false);
+  const [showGps, setShowGps]   = useState(false);
+  const [govLoading, setGovLoading] = useState(false);
 
   // ── الحقول المشتركة (تسجيل دخول + مريض جديد) ────────────
   const [phone, setPhone]       = useState('');
@@ -123,7 +155,23 @@ export function Login() {
   const [pharName, setPharName]           = useState('');
   const [pharHours, setPharHours]         = useState('');
   const [pharAddress, setPharAddress]     = useState('');
-  const [pharGov, setPharGov]             = useState('البصرة');
+  const [pharGov, setPharGov]             = useState('');
+
+  // ── Geolocation: يُفعَّل عند ظهور نموذج الصيدلية ─────────
+  useEffect(() => {
+    if (mode !== 'register' || role !== 'pharmacy') return;
+    if (!navigator.geolocation) return;
+    setGovLoading(true);
+    navigator.geolocation.getCurrentPosition(
+      ({ coords }) => {
+        setPharGov(detectGovernorate(coords.latitude, coords.longitude));
+        setGovLoading(false);
+      },
+      () => { setPharGov(''); setGovLoading(false); },
+      { timeout: 8000, maximumAge: 60000 }
+    );
+  }, [mode, role]);
+
   const [pharHasCode, setPharHasCode]     = useState(false);
   const [pharCode, setPharCode]           = useState('');
   const [pharCert, setPharCert]           = useState<File | null>(null);
@@ -326,16 +374,49 @@ export function Login() {
                       value={pharAddress} onChange={e => setPharAddress(e.target.value)} />
                   </Field>
 
-                  <Field label="المحافظة">
+                  {/* المحافظة + مؤشر Geolocation */}
+                  <div className="flex flex-col gap-1">
+                    <div className="flex items-center gap-2">
+                      <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                        المحافظة
+                      </label>
+                      <AnimatePresence>
+                        {govLoading && (
+                          <motion.span
+                            key="gov-spinner"
+                            initial={{ opacity: 0, scale: 0.6 }}
+                            animate={{ opacity: 1, scale: 1, rotate: 360 }}
+                            exit={{ opacity: 0, scale: 0.6 }}
+                            transition={{
+                              rotate: { duration: 0.9, repeat: Infinity, ease: 'linear' },
+                              opacity: { duration: 0.2 },
+                            }}
+                            className="w-3.5 h-3.5 rounded-full border-2 border-emerald-400 border-t-transparent inline-block"
+                            style={{ display: 'inline-block' }}
+                          />
+                        )}
+                      </AnimatePresence>
+                      {!govLoading && pharGov && (
+                        <motion.span
+                          initial={{ opacity: 0, x: 4 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          className="text-[10px] text-emerald-600 font-medium bg-emerald-50 px-1.5 py-0.5 rounded-full"
+                        >
+                          تم الكشف تلقائياً
+                        </motion.span>
+                      )}
+                    </div>
                     <select
                       className={inputCls + ' cursor-pointer'}
                       value={pharGov} onChange={e => setPharGov(e.target.value)}
+                      disabled={govLoading}
                       style={{
                         backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E\")",
                         backgroundRepeat: 'no-repeat', backgroundPosition: 'left 10px center', backgroundSize: '14px',
                         paddingLeft: '32px',
                       }}
                     >
+                      <option value="">اختر المحافظة</option>
                       {[
                         'بغداد','البصرة','نينوى','أربيل','السليمانية','دهوك','كركوك',
                         'النجف','كربلاء','بابل','ذي قار','ميسان','الأنبار','ديالى',
@@ -344,7 +425,7 @@ export function Login() {
                         <option key={g} value={g}>{g}</option>
                       ))}
                     </select>
-                  </Field>
+                  </div>
 
                   {/* ── بيانات الحساب ── */}
                   <GroupDivider title="بيانات الحساب" />
