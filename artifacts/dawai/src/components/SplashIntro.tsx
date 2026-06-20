@@ -209,10 +209,10 @@ export function SplashIntro() {
       initial={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
       animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
       exit={{
-        scale: 1.5,
+        scale: 1.02,
         opacity: 0,
-        filter: "blur(32px)",
-        transition: { duration: 1.0, ease: [0.4, 0, 1, 1] },
+        filter: "blur(20px)",
+        transition: { duration: 0.75, ease: [0.4, 0, 0.2, 1] },
       }}
     >
 
@@ -262,21 +262,21 @@ export function SplashIntro() {
         <Capsule3D />
 
         {/* ── Typography ── */}
-        <div className="flex flex-col items-center gap-3" dir="rtl">
+        <div className="flex flex-col items-center" dir="rtl">
 
           {/* اسم التطبيق */}
           <motion.h1
-            initial={{ y: 40, opacity: 0, filter: "blur(10px)", scale: 0.85 }}
+            initial={{ y: 32, opacity: 0, filter: "blur(8px)", scale: 0.88 }}
             animate={{ y: 0, opacity: 1, filter: "blur(0px)", scale: 1 }}
             transition={{
               type: "spring",
-              stiffness: 100,
-              damping: 16,
-              delay: 1.6,
+              stiffness: 140,
+              damping: 18,
+              delay: 1.0,
             }}
-            className="font-black text-white select-none"
+            className="font-black text-white select-none mb-6"
             style={{
-              fontFamily: "'Cairo', 'Tajawal', sans-serif",
+              fontFamily: "'Cairo', sans-serif",
               fontSize: "clamp(52px, 10vw, 88px)",
               lineHeight: 1,
               letterSpacing: "-0.02em",
@@ -290,13 +290,17 @@ export function SplashIntro() {
             دوائي
           </motion.h1>
 
-          {/* English subtitle */}
+          {/* English subtitle — thin, spaced, slate-400 */}
           <motion.p
-            initial={{ opacity: 0, letterSpacing: "0.2em", y: 8 }}
-            animate={{ opacity: 0.55, letterSpacing: "0.55em", y: 0 }}
-            transition={{ duration: 1.0, delay: 2.0, ease: "easeOut" }}
-            className="text-white font-light tracking-widest uppercase select-none text-xs"
-            style={{ fontFamily: "system-ui, 'SF Pro Text', sans-serif" }}
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 1.3, ease: "easeOut" }}
+            className="text-slate-400 uppercase select-none text-xs tracking-widest"
+            style={{
+              fontFamily: "'Segoe UI Light', 'Helvetica Neue', 'Inter', sans-serif",
+              fontWeight: 300,
+              letterSpacing: "0.45em",
+            }}
           >
             The Digital Pharmacy
           </motion.p>
@@ -305,11 +309,12 @@ export function SplashIntro() {
           <motion.div
             initial={{ scaleX: 0, opacity: 0 }}
             animate={{ scaleX: 1, opacity: 1 }}
-            transition={{ duration: 0.8, delay: 2.1, ease: [0.4, 0, 0.2, 1] }}
+            transition={{ duration: 0.5, delay: 1.4, ease: [0.4, 0, 0.2, 1] }}
+            className="mt-4"
             style={{
               height: 1,
-              width: 120,
-              background: "linear-gradient(90deg, transparent, rgba(52,211,153,0.8), transparent)",
+              width: 100,
+              background: "linear-gradient(90deg, transparent, rgba(52,211,153,0.7), transparent)",
               transformOrigin: "center",
             }}
           />
@@ -322,7 +327,7 @@ export function SplashIntro() {
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        transition={{ duration: 2.0, delay: 2.6 }}
+        transition={{ duration: 0.8, delay: 1.8 }}
         className="absolute bottom-8 left-0 right-0 flex justify-center pointer-events-none"
       >
         <p

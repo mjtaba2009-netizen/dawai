@@ -64,7 +64,7 @@ export default function App() {
 
   useEffect(() => {
     // تختفي الشاشة بعد 3.5 ثانية — يكفي لإتمام تسلسل الحركة
-    const timer = setTimeout(() => setShowIntro(false), 3600);
+    const timer = setTimeout(() => setShowIntro(false), 2800);
     return () => clearTimeout(timer); // Cleanup لمنع Memory Leak
   }, []);
 
