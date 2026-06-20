@@ -1,13 +1,21 @@
+/**
+ * PharmacyDashboard — لوحة تحكم الصيدلية
+ * ─────────────────────────────────────────────────────────────────────────
+ * تبويبان:
+ *   1. "الطلبات الواردة" — يستخدم OrderAutomationContext لكل إجراء
+ *   2. "المخزون"         — إضافة / تعديل / حذف
+ */
 import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Plus, Pencil, Trash2, X, Package, ShoppingBag, Check, Clock } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useOrderAutomation, type OrderPayload } from "@/contexts/OrderAutomationContext";
 import { useToast } from "@/hooks/use-toast";
 import { AddMedicineForm } from "@/components/AddMedicineForm";
 
-// ────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════
 // Types
-// ────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════
 interface InventoryItem {
   id: number;
   medicationId: number;
@@ -31,15 +39,15 @@ interface PharmacyOrder {
   };
 }
 
-// ────────────────────────────────────────────────────
-// API hook
-// ────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════
+// usePharmacyApi — مساعد طلبات HTTP مع Bearer token
+// ═══════════════════════════════════════════════════════════════════
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
 function usePharmacyApi(token: string | undefined) {
   const h = { "Content-Type": "application/json", Authorization: `Bearer ${token ?? ""}` };
 
-  const get = async <T>(path: string): Promise<T> => {
+  const get  = async <T>(path: string): Promise<T> => {
     const res = await fetch(`${BASE}${path}`, { headers: h });
     if (!res.ok) throw new Error((await res.json())?.error ?? "خطأ");
     return res.json();
@@ -49,12 +57,12 @@ function usePharmacyApi(token: string | undefined) {
     if (!res.ok) throw new Error((await res.json())?.error ?? "خطأ");
     return res.json();
   };
-  const put = async <T>(path: string, body: object): Promise<T> => {
+  const put  = async <T>(path: string, body: object): Promise<T> => {
     const res = await fetch(`${BASE}${path}`, { method: "PUT", headers: h, body: JSON.stringify(body) });
     if (!res.ok) throw new Error((await res.json())?.error ?? "خطأ");
     return res.json();
   };
-  const del = async (path: string) => {
+  const del  = async (path: string) => {
     const res = await fetch(`${BASE}${path}`, { method: "DELETE", headers: h });
     if (!res.ok && res.status !== 204) throw new Error((await res.json())?.error ?? "خطأ");
   };
@@ -62,9 +70,9 @@ function usePharmacyApi(token: string | undefined) {
   return { get, post, put, del };
 }
 
-// ────────────────────────────────────────────────────
-// Edit modal (existing inventory items)
-// ────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════
+// Edit modal for existing inventory items
+// ═══════════════════════════════════════════════════════════════════
 function ItemFormModal({
   item, onSave, onClose,
 }: {
@@ -72,9 +80,9 @@ function ItemFormModal({
   onSave: (data: { price: number; quantity: number }) => Promise<void>;
   onClose: () => void;
 }) {
-  const [price, setPrice]     = useState(item.price.toString());
+  const [price, setPrice]       = useState(item.price.toString());
   const [quantity, setQuantity] = useState(item.quantity.toString());
-  const [saving, setSaving]   = useState(false);
+  const [saving, setSaving]     = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -105,13 +113,15 @@ function ItemFormModal({
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="text-sm font-semibold text-slate-600 mb-1.5 block">السعر (IQD)</label>
-            <input type="number" value={price} onChange={(e) => setPrice(e.target.value)} required min="0.01" step="0.01"
+            <input type="number" value={price} onChange={(e) => setPrice(e.target.value)}
+              required min="0.01" step="0.01"
               className="w-full h-12 px-4 rounded-xl border border-white/60 bg-white/50 backdrop-blur-md text-slate-800 text-sm outline-none focus:border-emerald-400"
               data-testid="input-price" />
           </div>
           <div>
             <label className="text-sm font-semibold text-slate-600 mb-1.5 block">الكمية المتاحة</label>
-            <input type="number" value={quantity} onChange={(e) => setQuantity(e.target.value)} required min="0" step="1"
+            <input type="number" value={quantity} onChange={(e) => setQuantity(e.target.value)}
+              required min="0" step="1"
               className="w-full h-12 px-4 rounded-xl border border-white/60 bg-white/50 backdrop-blur-md text-slate-800 text-sm outline-none focus:border-emerald-400"
               data-testid="input-quantity" />
           </div>
@@ -129,10 +139,10 @@ function ItemFormModal({
   );
 }
 
-// ────────────────────────────────────────────────────
-// Incoming order card with accept / reject / timeout
-// ────────────────────────────────────────────────────
-const TIMEOUT_SECS = 10;
+// ═══════════════════════════════════════════════════════════════════
+// IncomingOrderCard — بطاقة الطلب الوارد مع عداد 15 ثانية (مرئي فقط)
+// ═══════════════════════════════════════════════════════════════════
+const VISUAL_COUNTDOWN_SECS = 15; // يطابق مؤقت التوجيه في OrderAutomationContext
 
 const ORDER_STATUS_STYLES: Record<string, string> = {
   pending:   "bg-amber-50 text-amber-700",
@@ -140,6 +150,8 @@ const ORDER_STATUS_STYLES: Record<string, string> = {
   ready:     "bg-emerald-50 text-emerald-700",
   rejected:  "bg-red-50 text-red-500",
   timeout:   "bg-orange-50 text-orange-600",
+  routing:   "bg-orange-50 text-orange-600",
+  routed:    "bg-amber-50 text-amber-600",
 };
 const ORDER_STATUS_LABELS: Record<string, string> = {
   pending:   "قيد المراجعة",
@@ -147,36 +159,36 @@ const ORDER_STATUS_LABELS: Record<string, string> = {
   ready:     "جاهز للاستلام",
   rejected:  "مرفوض",
   timeout:   "انتهى الوقت",
+  routing:   "جاري التوجيه...",
+  routed:    "تم التوجيه",
 };
 
 function IncomingOrderCard({
-  order, onAccept, onReject,
+  order,
+  onAccept,
+  onReject,
 }: {
   order: PharmacyOrder;
   onAccept: (id: number) => Promise<void>;
   onReject: (id: number) => Promise<void>;
 }) {
-  const [countdown, setCountdown] = useState(TIMEOUT_SECS);
+  // عداد مرئي فقط — الإجراء الفعلي يتم عبر OrderAutomationContext
+  const [countdown, setCountdown] = useState(VISUAL_COUNTDOWN_SECS);
   const [actioning, setActioning] = useState<"accept" | "reject" | null>(null);
-  const [timedOut, setTimedOut]   = useState(false);
 
-  // تنازل عكسي — 10 ثواني للاستجابة
+  // استخدام Context لقراءة حالة التوجيه الذكي
+  const { state: autoState } = useOrderAutomation();
+  const autoEntry = autoState.entries[order.id];
+  const isRouting = autoEntry?.step === "routing" || autoEntry?.step === "routed";
+
   useEffect(() => {
     if (order.status !== "pending") return;
+    // المؤقت المرئي — يعمل بالتوازي مع مؤقت Context
     const interval = setInterval(() => {
-      setCountdown((c) => {
-        if (c <= 1) { clearInterval(interval); setTimedOut(true); return 0; }
-        return c - 1;
-      });
+      setCountdown((c) => (c <= 1 ? (clearInterval(interval), 0) : c - 1));
     }, 1000);
-    return () => clearInterval(interval);
+    return () => clearInterval(interval); // Cleanup لمنع Memory Leak
   }, [order.status]);
-
-  // عند انتهاء الوقت → أرسل timeout للـ API
-  useEffect(() => {
-    if (!timedOut || order.status !== "pending") return;
-    onReject(order.id); // يستخدم reject كـ timeout trigger داخلياً
-  }, [timedOut]);
 
   const handleAccept = async () => {
     setActioning("accept");
@@ -187,10 +199,9 @@ function IncomingOrderCard({
     try { await onReject(order.id); } finally { setActioning(null); }
   };
 
-  const isPending  = order.status === "pending";
-  const isTimeout  = order.status === "timeout";
-  const statusStyle = ORDER_STATUS_STYLES[order.status] ?? "bg-slate-100 text-slate-600";
-  const statusLabel = ORDER_STATUS_LABELS[order.status] ?? order.status;
+  const isPending   = order.status === "pending";
+  const statusStyle = ORDER_STATUS_STYLES[autoEntry?.step ?? order.status] ?? "bg-slate-100 text-slate-600";
+  const statusLabel = ORDER_STATUS_LABELS[autoEntry?.step ?? order.status] ?? order.status;
 
   return (
     <motion.div
@@ -200,22 +211,25 @@ function IncomingOrderCard({
       exit={{ opacity: 0, scale: 0.95, transition: { duration: 0.18 } }}
       transition={{ type: "spring", damping: 22, stiffness: 280 }}
       className="rounded-2xl overflow-hidden
-        bg-white/75 backdrop-blur-2xl
-        border border-white/60
+        bg-white/75 backdrop-blur-2xl border border-white/60
         shadow-[0_4px_20px_rgb(0,0,0,0.06)]"
     >
       {/* معلومات الطلب */}
       <div className="p-4">
         <div className="flex items-start gap-3">
-          <div className="w-11 h-11 bg-gradient-to-br from-emerald-100 to-teal-200 rounded-xl flex items-center justify-center text-xl flex-shrink-0">💊</div>
+          <div className="w-11 h-11 bg-gradient-to-br from-emerald-100 to-teal-200 rounded-xl flex items-center justify-center text-xl flex-shrink-0">
+            💊
+          </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center justify-between gap-2 mb-0.5">
               <p className="font-bold text-slate-800 text-sm truncate">{order.medication.name}</p>
-              <span className={`flex-shrink-0 text-[10px] px-2 py-0.5 rounded-full font-semibold ${statusStyle}`}>{statusLabel}</span>
+              <span className={`flex-shrink-0 text-[10px] px-2 py-0.5 rounded-full font-semibold ${statusStyle}`}>
+                {statusLabel}
+              </span>
             </div>
             <p className="text-slate-400 text-xs">{order.medication.genericName}</p>
             <div className="flex items-center gap-3 mt-1.5">
-              <span className="text-emerald-700 font-bold text-sm">{order.totalPrice.toFixed(2)} ر.س</span>
+              <span className="text-emerald-700 font-bold text-sm">{order.totalPrice.toFixed(2)} IQD</span>
               <span className="text-slate-300">•</span>
               <span className="text-slate-500 text-xs">الكمية: {order.quantity}</span>
               {order.medication.requiresPrescription && (
@@ -225,8 +239,8 @@ function IncomingOrderCard({
           </div>
         </div>
 
-        {/* شريط العد التنازلي — للطلبات المعلّقة */}
-        {isPending && (
+        {/* شريط العد التنازلي المرئي — للطلبات المعلّقة */}
+        {isPending && !isRouting && (
           <div className="mt-3">
             <div className="flex items-center justify-between mb-1">
               <span className="text-xs text-slate-500 font-medium flex items-center gap-1">
@@ -235,62 +249,66 @@ function IncomingOrderCard({
               </span>
               <motion.span
                 key={countdown}
-                initial={{ scale: 1.3, color: "#ef4444" }}
-                animate={{ scale: 1, color: countdown <= 3 ? "#ef4444" : "#64748b" }}
+                initial={{ scale: 1.3 }}
+                animate={{ scale: 1 }}
                 transition={{ type: "spring", damping: 20 }}
-                className="text-xs font-bold tabular-nums"
+                className={`text-xs font-bold tabular-nums ${countdown <= 5 ? "text-red-500" : "text-slate-500"}`}
               >
                 {countdown}s
               </motion.span>
             </div>
             <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
               <motion.div
-                className="h-full rounded-full bg-gradient-to-r from-emerald-400 to-teal-400"
-                initial={{ width: "100%" }}
-                animate={{ width: `${(countdown / TIMEOUT_SECS) * 100}%` }}
+                className="h-full rounded-full origin-right"
+                style={{
+                  background: countdown <= 5
+                    ? "linear-gradient(to right, #ef4444, #f97316)"
+                    : "linear-gradient(to right, #34d399, #2dd4bf)",
+                }}
+                animate={{ width: `${(countdown / VISUAL_COUNTDOWN_SECS) * 100}%` }}
                 transition={{ duration: 1, ease: "linear" }}
-                style={{ backgroundColor: countdown <= 3 ? "#ef4444" : undefined }}
               />
             </div>
           </div>
         )}
 
-        {/* بديل صيدلية عند انتهاء الوقت */}
-        {isTimeout && (
+        {/* رسالة التوجيه الذكي — من Context */}
+        {isRouting && (
           <motion.div
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: "auto" }}
             transition={{ type: "spring", damping: 22 }}
             className="mt-3 p-3 rounded-xl bg-amber-50 border border-amber-100"
           >
-            <p className="text-amber-700 text-xs font-semibold mb-1">🔄 تم توجيه الطلب لصيدلية قريبة أخرى</p>
-            <p className="text-amber-500 text-[11px]">صيدلية الحياة — على بعد 0.8 كم</p>
-            <div className="flex gap-1 mt-2">
-              {[0, 1, 2].map((i) => (
-                <motion.div key={i} className="flex-1 h-1 rounded-full bg-amber-300"
-                  animate={{ opacity: [0.3, 1, 0.3] }}
-                  transition={{ duration: 1.2, repeat: Infinity, delay: i * 0.2 }} />
-              ))}
-            </div>
+            <p className="text-amber-700 text-xs font-semibold mb-1">
+              🔁 {autoEntry?.step === "routed"
+                ? `تم التوجيه إلى: ${autoEntry.fallbackPharmacy}`
+                : "جاري البحث عن صيدلية بديلة لضمان أسرع استجابة..."}
+            </p>
+            {autoEntry?.step === "routing" && (
+              <div className="flex gap-1 mt-2">
+                {[0, 1, 2].map((i) => (
+                  <motion.div key={i} className="flex-1 h-1 rounded-full bg-amber-300"
+                    animate={{ opacity: [0.3, 1, 0.3] }}
+                    transition={{ duration: 1.2, repeat: Infinity, delay: i * 0.2 }} />
+                ))}
+              </div>
+            )}
           </motion.div>
         )}
       </div>
 
-      {/* أزرار الإجراء — فقط للطلبات المعلّقة */}
+      {/* أزرار القبول / الرفض — للطلبات المعلّقة فقط */}
       <AnimatePresence>
-        {isPending && (
+        {isPending && !isRouting && (
           <motion.div
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: "auto" }}
             exit={{ opacity: 0, height: 0 }}
             className="border-t border-white/60 grid grid-cols-2"
           >
-            {/* رفض */}
-            <motion.button
-              whileTap={{ scale: 0.96 }}
-              transition={{ type: "spring", damping: 20, stiffness: 400 }}
-              onClick={handleReject}
-              disabled={!!actioning}
+            <motion.button whileTap={{ scale: 0.96 }}
+              onClick={handleReject} disabled={!!actioning}
               className="py-3 flex items-center justify-center gap-1.5
                 text-red-500 font-semibold text-sm
                 border-l border-white/60
@@ -301,12 +319,8 @@ function IncomingOrderCard({
               {actioning === "reject" ? "جاري..." : "رفض / غير متوفر"}
             </motion.button>
 
-            {/* قبول */}
-            <motion.button
-              whileTap={{ scale: 0.96 }}
-              transition={{ type: "spring", damping: 20, stiffness: 400 }}
-              onClick={handleAccept}
-              disabled={!!actioning}
+            <motion.button whileTap={{ scale: 0.96 }}
+              onClick={handleAccept} disabled={!!actioning}
               className="py-3 flex items-center justify-center gap-1.5
                 text-emerald-600 font-bold text-sm
                 hover:bg-emerald-50/60 transition-colors disabled:opacity-50"
@@ -322,83 +336,101 @@ function IncomingOrderCard({
   );
 }
 
-// ────────────────────────────────────────────────────
-// Pharmacy Orders Tab
-// ────────────────────────────────────────────────────
-function PharmacyOrdersTab({ api, token }: { api: ReturnType<typeof usePharmacyApi>; token: string }) {
+// ═══════════════════════════════════════════════════════════════════
+// PharmacyOrdersTab — تبويب الطلبات الواردة (يستخدم OrderAutomationContext)
+// ═══════════════════════════════════════════════════════════════════
+function PharmacyOrdersTab({
+  api,
+  token,
+  pharmacyName,
+}: {
+  api: ReturnType<typeof usePharmacyApi>;
+  token: string;
+  pharmacyName: string;
+}) {
   const { toast } = useToast();
-  const [orders, setOrders]         = useState<PharmacyOrder[]>([]);
-  const [isLoading, setIsLoading]   = useState(true);
-  const handledRef                  = useRef<Set<number>>(new Set());
+  const { state: autoState, watchOrder, acceptOrder, rejectOrder } = useOrderAutomation();
+
+  const [orders, setOrders]       = useState<PharmacyOrder[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // نتابع الطلبات التي أضفناها للـ Context لتجنب التكرار
+  const watchedRef = useRef<Set<number>>(new Set());
 
   const fetchOrders = useCallback(async () => {
     try {
       const data = await api.get<PharmacyOrder[]>("/api/pharmacy/orders");
       setOrders(data);
-    } catch { /* silent */ }
-    finally { setIsLoading(false); }
-  }, []);
 
-  // Polling every 5s
+      // ── ابدأ مراقبة الطلبات المعلّقة الجديدة (لم تُضاف للـ Context بعد) ──
+      // هذا يُطلق مؤقت التوجيه الذكي (15 ثانية) لكل طلب جديد
+      data
+        .filter((o) => o.status === "pending" && !watchedRef.current.has(o.id))
+        .forEach((order) => {
+          watchedRef.current.add(order.id);
+
+          // بناء payload الأتمتة الكاملة
+          const payload: OrderPayload = {
+            orderId:        order.id,
+            medicationId:   order.medication.id,
+            medicationName: order.medication.name,
+            quantity:       order.quantity,
+            totalPrice:     order.totalPrice,
+            pharmacyId:     0, // يُملأ من بيانات المستخدم الحالي
+            pharmacyName,
+            // رقم هاتف المريض — محاكاة للتجربة
+            // TODO: في الإنتاج، أضف patientPhone لاستجابة GET /pharmacy/orders
+            patientPhone: "+9647700000000",
+          };
+
+          watchOrder(payload, token);
+        });
+    } catch { /* صامت */ }
+    finally { setIsLoading(false); }
+  }, [pharmacyName, token, watchOrder]);
+
+  // Polling كل 5 ثوانٍ
   useEffect(() => {
     fetchOrders();
     const id = setInterval(fetchOrders, 5000);
-    return () => clearInterval(id);
-  }, []);
+    return () => clearInterval(id); // Cleanup — منع Memory Leak
+  }, [fetchOrders]);
 
-  // Auto-timeout simulation: 10s per new pending order (frontend only)
-  useEffect(() => {
-    const pending = orders.filter((o) => o.status === "pending" && !handledRef.current.has(o.id));
-    const timers: ReturnType<typeof setTimeout>[] = [];
+  // ── قبول الطلب — تسلسل الأتمتة الكامل عبر Context ──────────────
+  const handleAccept = useCallback(async (orderId: number) => {
+    try {
+      await acceptOrder(orderId, token);
 
-    pending.forEach((order) => {
-      handledRef.current.add(order.id);
-      const t = setTimeout(async () => {
-        // التحقق إذا لا يزال معلّقاً قبل إرسال timeout
-        const fresh = await api.get<PharmacyOrder[]>("/api/pharmacy/orders");
-        const still = fresh.find((o) => o.id === order.id && o.status === "pending");
-        if (!still) return;
+      // تحديث الحالة محلياً فوراً (Optimistic)
+      setOrders((prev) => prev.map((o) => o.id === orderId ? { ...o, status: "confirmed" } : o));
 
-        await api.put(`/api/pharmacy/orders/${order.id}/status`, { status: "timeout" });
-        setOrders((prev) => prev.map((o) => o.id === order.id ? { ...o, status: "timeout" } : o));
-        toast({
-          title: "⏱ انتهت مهلة الاستجابة",
-          description: `طلب ${order.medication.name} — تم توجيهه لصيدلية بديلة`,
-          variant: "destructive",
-        });
-      }, TIMEOUT_SECS * 1000);
+      toast({
+        title: "✅ تم قبول الطلب",
+        description: "تم تجهيز الطلب وإرسال رسالة للمريض عبر واتساب",
+      });
+    } catch (err) {
+      toast({ title: "خطأ في القبول", description: String(err), variant: "destructive" });
+    }
+  }, [acceptOrder, token, toast]);
 
-      timers.push(t);
-    });
+  // ── رفض الطلب عبر Context ────────────────────────────────────────
+  const handleReject = useCallback(async (orderId: number) => {
+    try {
+      await rejectOrder(orderId, token);
 
-    return () => timers.forEach(clearTimeout);
-  }, [orders.filter((o) => o.status === "pending").map((o) => o.id).join(",")]);
+      // تحديث الحالة محلياً
+      setOrders((prev) => prev.map((o) => o.id === orderId ? { ...o, status: "rejected" } : o));
 
-  const handleAccept = async (id: number) => {
-    await api.put(`/api/pharmacy/orders/${id}/status`, { status: "confirmed" });
+      toast({ title: "تم رفض الطلب", description: "تم إشعار المريض بعدم توفر الدواء" });
+    } catch (err) {
+      toast({ title: "خطأ في الرفض", description: String(err), variant: "destructive" });
+    }
+  }, [rejectOrder, token, toast]);
 
-    // TODO: Connect to n8n Webhook to trigger automated WhatsApp notification to the patient
-    // await fetch(process.env.N8N_WEBHOOK_URL, { method: "POST", body: JSON.stringify({ orderId: id, status: "confirmed" }) })
-
-    setOrders((prev) => prev.map((o) => o.id === id ? { ...o, status: "confirmed" } : o));
-    toast({ title: "✅ تم قبول الطلب", description: "يتم الآن تجهيز الدواء للمريض" });
-  };
-
-  const handleReject = async (id: number) => {
-    // يُستخدم أيضاً عند timeout من الـ effect أعلاه
-    const order = orders.find((o) => o.id === id);
-    const isTimeout = (order?.status === "pending");
-    const newStatus = isTimeout ? "rejected" : "rejected";
-
-    await api.put(`/api/pharmacy/orders/${id}/status`, { status: newStatus });
-    setOrders((prev) => prev.map((o) => o.id === id ? { ...o, status: newStatus } : o));
-
-    if (!isTimeout) toast({ title: "تم رفض الطلب", description: "تم إشعار المريض بعدم توفر الدواء" });
-  };
-
-  const pending   = orders.filter((o) => o.status === "pending");
-  const active    = orders.filter((o) => o.status === "confirmed" || o.status === "ready");
-  const archived  = orders.filter((o) => ["rejected", "timeout", "completed", "cancelled"].includes(o.status));
+  // ── تقسيم الطلبات ────────────────────────────────────────────────
+  const pending  = orders.filter((o) => o.status === "pending");
+  const active   = orders.filter((o) => o.status === "confirmed" || o.status === "ready");
+  const archived = orders.filter((o) => ["rejected", "timeout", "completed", "cancelled"].includes(o.status));
 
   if (isLoading) {
     return (
@@ -413,8 +445,7 @@ function PharmacyOrdersTab({ api, token }: { api: ReturnType<typeof usePharmacyA
   if (orders.length === 0) {
     return (
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
+        initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
         className="flex flex-col items-center justify-center py-20 text-center px-4"
       >
         <div className="w-16 h-16 bg-emerald-50 rounded-full flex items-center justify-center mb-3">
@@ -473,19 +504,21 @@ function PharmacyOrdersTab({ api, token }: { api: ReturnType<typeof usePharmacyA
   );
 }
 
-// ────────────────────────────────────────────────────
-// Main Dashboard
-// ────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════
+// PharmacyDashboard — الصفحة الرئيسية
+// ═══════════════════════════════════════════════════════════════════
 export function PharmacyDashboard() {
   const { user } = useAuth();
   const { toast } = useToast();
   const api = usePharmacyApi(user?.token);
 
-  const [activeTab, setActiveTab]   = useState<"inventory" | "orders">("orders");
-  const [inventory, setInventory]   = useState<InventoryItem[]>([]);
-  const [isLoading, setIsLoading]   = useState(true);
+  const [activeTab, setActiveTab]     = useState<"inventory" | "orders">("orders");
+  const [inventory, setInventory]     = useState<InventoryItem[]>([]);
+  const [isLoading, setIsLoading]     = useState(true);
   const [editingItem, setEditingItem] = useState<InventoryItem | null | "new">(null);
-  const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [deletingId, setDeletingId]   = useState<number | null>(null);
+
+  const pharmacyName = user?.name ?? "الصيدلية";
 
   const fetchInventory = useCallback(async () => {
     try {
@@ -533,7 +566,6 @@ export function PharmacyDashboard() {
     } finally { setDeletingId(null); }
   };
 
-  const pharmacyName = user?.name ?? "الصيدلية";
   const TABS = [
     { key: "orders",    label: "الطلبات الواردة", icon: ShoppingBag },
     { key: "inventory", label: "المخزون",          icon: Package     },
@@ -541,14 +573,16 @@ export function PharmacyDashboard() {
 
   return (
     <div className="flex-1 flex flex-col bg-muted/20">
-      {/* الرأس */}
+      {/* رأس الصفحة */}
       <div className="bg-gradient-to-br from-emerald-500 to-teal-600 px-5 pt-6 pb-5">
         <div className="flex items-center justify-between mb-4">
           <div>
             <p className="text-emerald-100 text-xs mb-0.5">لوحة التحكم</p>
             <h1 className="text-white text-xl font-bold">{pharmacyName}</h1>
           </div>
-          <div className="w-12 h-12 bg-white/20 backdrop-blur-sm rounded-2xl border border-white/30 flex items-center justify-center text-2xl">🏪</div>
+          <div className="w-12 h-12 bg-white/20 backdrop-blur-sm rounded-2xl border border-white/30 flex items-center justify-center text-2xl">
+            🏪
+          </div>
         </div>
 
         {/* التبويبات */}
@@ -573,29 +607,22 @@ export function PharmacyDashboard() {
       {/* محتوى التبويب */}
       <AnimatePresence mode="wait">
         {activeTab === "orders" ? (
-          <motion.div
-            key="orders"
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: 20 }}
+          <motion.div key="orders"
+            initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }}
             transition={{ type: "spring", damping: 22, stiffness: 280 }}
             className="flex-1 overflow-y-auto"
           >
-            <PharmacyOrdersTab api={api} token={user?.token ?? ""} />
+            <PharmacyOrdersTab api={api} token={user?.token ?? ""} pharmacyName={pharmacyName} />
           </motion.div>
         ) : (
-          <motion.div
-            key="inventory"
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -20 }}
+          <motion.div key="inventory"
+            initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}
             transition={{ type: "spring", damping: 22, stiffness: 280 }}
             className="flex-1 flex flex-col"
           >
-            {/* زر إضافة */}
+            {/* زر إضافة دواء */}
             <div className="px-4 pt-4">
-              <motion.button
-                whileTap={{ scale: 0.97 }} whileHover={{ scale: 1.01 }}
+              <motion.button whileTap={{ scale: 0.97 }} whileHover={{ scale: 1.01 }}
                 onClick={() => setEditingItem("new")}
                 className="w-full h-12 flex items-center justify-center gap-2 rounded-2xl
                   bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-bold
@@ -624,14 +651,10 @@ export function PharmacyDashboard() {
                   </motion.div>
                 )
                 : inventory.map((item, i) => (
-                  <motion.div
-                    key={item.id}
+                  <motion.div key={item.id}
                     initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: i * 0.06, type: "spring", damping: 22 }}
-                    className="rounded-2xl p-4
-                      bg-white/75 backdrop-blur-2xl
-                      border border-white/60
-                      shadow-[0_4px_16px_rgb(0,0,0,0.05)]"
+                    className="rounded-2xl p-4 bg-white/75 backdrop-blur-2xl border border-white/60 shadow-[0_4px_16px_rgb(0,0,0,0.05)]"
                     data-testid={`card-inventory-${item.id}`}
                   >
                     <div className="flex items-start gap-3">
@@ -640,7 +663,7 @@ export function PharmacyDashboard() {
                         <p className="font-bold text-slate-800 text-sm truncate">{item.medication.name}</p>
                         <p className="text-slate-400 text-xs truncate">{item.medication.genericName}</p>
                         <div className="flex items-center gap-3 mt-2">
-                          <span className="text-emerald-700 font-bold text-sm">{item.price.toFixed(2)} ر.س</span>
+                          <span className="text-emerald-700 font-bold text-sm">{item.price.toFixed(2)} IQD</span>
                           <span className="text-slate-400 text-xs">الكمية: {item.quantity}</span>
                           {item.quantity === 0 && (
                             <span className="text-[10px] px-2 py-0.5 bg-red-50 text-red-500 rounded-full font-medium">نفد</span>
@@ -679,7 +702,7 @@ export function PharmacyDashboard() {
       <AnimatePresence>
         {editingItem !== null && editingItem !== "new" && (
           <ItemFormModal
-            item={editingItem}
+            item={editingItem as InventoryItem}
             onSave={(data) => handleEdit((editingItem as InventoryItem).id, data)}
             onClose={() => setEditingItem(null)}
           />

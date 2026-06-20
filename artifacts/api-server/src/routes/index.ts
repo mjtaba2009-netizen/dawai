@@ -5,6 +5,7 @@ import medicationsRouter from "./medications";
 import pharmaciesRouter from "./pharmacies";
 import ordersRouter from "./orders";
 import notificationsRouter from "./notifications";
+import webhooksRouter from "./webhooks";
 
 const router: IRouter = Router();
 
@@ -14,5 +15,6 @@ router.use(medicationsRouter);
 router.use(pharmaciesRouter);
 router.use(ordersRouter);
 router.use(notificationsRouter);
+router.use(webhooksRouter);
 
 export default router;

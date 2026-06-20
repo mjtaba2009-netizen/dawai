@@ -4,6 +4,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { AuthContext, AuthProvider } from '@/contexts/AuthContext';
+import { OrderAutomationProvider } from '@/contexts/OrderAutomationContext';
+import { OrderAutomationManager } from '@/components/OrderAutomationManager';
 import { Layout } from '@/components/Layout';
 
 // Pages
@@ -25,7 +27,6 @@ const queryClient = new QueryClient({
 const AppRoutes = () => {
   const { user } = useContext(AuthContext)!;
 
-  // إذا لم يسجل الدخول، وجهه دائماً لصفحة الدخول
   if (!user) {
     return (
       <Routes>
@@ -34,8 +35,6 @@ const AppRoutes = () => {
     );
   }
 
-  // جميع المستخدمين يصلون لصفحات المريض
-  // الصيدلية تضاف لها /dashboard إضافةً لذلك
   return (
     <Routes>
       <Route path="/home"          element={<Home />} />
@@ -61,12 +60,16 @@ export default function App() {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <AuthProvider>
-          <BrowserRouter basename={import.meta.env.BASE_URL}>
-            <Layout>
-              <AppRoutes />
-            </Layout>
-            <Toaster />
-          </BrowserRouter>
+          <OrderAutomationProvider>
+            <BrowserRouter basename={import.meta.env.BASE_URL}>
+              <Layout>
+                <AppRoutes />
+              </Layout>
+              {/* لوحة الأتمتة العائمة — تظهر عند وجود طلبات جارية */}
+              <OrderAutomationManager />
+              <Toaster />
+            </BrowserRouter>
+          </OrderAutomationProvider>
         </AuthProvider>
       </TooltipProvider>
     </QueryClientProvider>
