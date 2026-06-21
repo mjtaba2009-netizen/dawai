@@ -44,3 +44,14 @@ This Linux container has **no native toolchain** (no Xcode/Android SDK/Gradle/po
 on the user's Mac/PC or cloud CI. Only JS deps + config + CSS are set up on-platform.
 Install Capacitor with `pnpm --filter @workspace/dawai add ...` (never `npm install`).
 `bundledWebRuntime` was removed in Capacitor 5+ (project is on v8) — omit it.
+
+## App icons & favicon
+- The brand logo at `public/logo.png` is **transparent** (green mark + "دوائي" text on
+  alpha; the "gray tile" some viewers show is just their transparency backdrop). It
+  already sits cleanly on the light login card — don't "remove background", it's done.
+- Native icons/splash use `@capacitor/assets`: source `assets/icon.png` (1024², opaque
+  white-flattened) + `assets/splash.png` (2732², logo centered on white). Run the
+  `cap:assets` script **off-Replit, after `cap add`** (it writes into the ios/android
+  projects). iOS icons must be opaque / no alpha — hence flattening on white.
+- Web favicons live in `public/` (favicon.ico + 16/32 PNG + apple-touch 180), referenced
+  in `index.html` with leading-slash paths; Vite rewrites them to the `/dawai/` base.
