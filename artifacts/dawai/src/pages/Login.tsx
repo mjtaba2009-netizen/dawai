@@ -336,13 +336,6 @@ export function Login() {
               </motion.div>
             </form>
           )}
-
-          {/* بيانات تجريبية */}
-          <div className="pt-3 space-y-0.5 text-center">
-            <p className="text-slate-400 text-[10px]">بيانات تجريبية:</p>
-            <p className="text-slate-500 text-[10px]">مريض: 0501234567 / 123456</p>
-            <p className="text-slate-500 text-[10px]">صيدلية: 0509999999 / 123456</p>
-          </div>
         </div>
       </motion.div>
     </div>
