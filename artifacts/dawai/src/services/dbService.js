@@ -1,5 +1,5 @@
 import { supabase } from "./supabaseClient";
-import { DEFAULT_GOVERNORATE } from "./authService";
+import { DEFAULT_GOVERNORATE } from "./constants";
 
 // ===================== Profiles (ملفات المستخدمين) =====================
 
@@ -27,7 +27,41 @@ export async function getProfile(userId) {
 
 // ===================== Pharmacies (الصيدليات/المتاجر) =====================
 
-/** الصيدليات/المتاجر المعلّقة بانتظار الموافقة */
+/** إنشاء متجر جديد (صيدلية/كوزماتك) عند تسجيل بائع */
+export async function createVendor({
+  ownerId,
+  name,
+  type = "pharmacy",
+  governorate = DEFAULT_GOVERNORATE,
+  address = null,
+  phone = null,
+  whatsapp = null,
+  instagram = null,
+  tiktok = null,
+  imageUrl = null,
+}) {
+  const { data, error } = await supabase
+    .from("pharmacies")
+    .insert({
+      owner_id: ownerId,
+      name,
+      type,
+      governorate: governorate || DEFAULT_GOVERNORATE,
+      address,
+      phone,
+      whatsapp,
+      instagram,
+      tiktok,
+      image_url: imageUrl,
+      status: "approved",
+    })
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+/** المتاجر المعلّقة بانتظار الموافقة */
 export async function getPendingPharmacies() {
   const { data, error } = await supabase
     .from("pharmacies")
@@ -77,7 +111,7 @@ export async function getPharmacy(pharmacyId) {
   return data;
 }
 
-/** المتاجر القريبة/المعتمدة */
+/** المتاجر القريبة/المتاحة */
 export async function getNearbyPharmacies() {
   const { data, error } = await supabase
     .from("pharmacies")
@@ -105,12 +139,34 @@ export async function addToInventory({ pharmacyId, medicationId, price, quantity
   return data;
 }
 
+/** إنشاء دواء/منتج جديد في الكتالوج */
+export async function createMedication(med) {
+  const { data, error } = await supabase
+    .from("medications")
+    .insert(med)
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
 /** الكتالوج العام للأدوية/المنتجات */
 export async function fetchCatalog() {
   const { data, error } = await supabase
     .from("medications")
     .select("*")
     .order("created_at", { ascending: false });
+  if (error) throw error;
+  return data;
+}
+
+/** بحث في الكتالوج بالاسم/الاسم العلمي */
+export async function searchMedications(query) {
+  const q = `%${query}%`;
+  const { data, error } = await supabase
+    .from("medications")
+    .select("*, pharmacy_medications(*, pharmacy:pharmacies(*))")
+    .or(`name.ilike.${q},generic_name.ilike.${q}`);
   if (error) throw error;
   return data;
 }
@@ -174,7 +230,7 @@ export async function placeOrder({
   return data;
 }
 
-/** تحديث حالة الطلب (لوحة كانبان: pending/confirmed/ready/rejected/delivered) */
+/** تحديث حالة الطلب (لوحة كانبان: pending/confirmed/ready/rejected/delivered/received) */
 export async function updateOrderStatus(orderId, status) {
   const { data, error } = await supabase
     .from("orders")
@@ -204,6 +260,31 @@ export async function getPharmacyOrders(pharmacyId) {
     .select("*, medication:medications(*)")
     .eq("pharmacy_id", pharmacyId)
     .order("created_at", { ascending: false });
+  if (error) throw error;
+  return data;
+}
+
+// ===================== Notifications (الإشعارات) =====================
+
+/** إشعارات المستخدم */
+export async function getNotifications(userId) {
+  const { data, error } = await supabase
+    .from("notifications")
+    .select("*")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return data;
+}
+
+/** تعليم إشعار كمقروء */
+export async function markNotificationRead(notificationId) {
+  const { data, error } = await supabase
+    .from("notifications")
+    .update({ is_read: true })
+    .eq("id", notificationId)
+    .select()
+    .single();
   if (error) throw error;
   return data;
 }

@@ -1,61 +1,103 @@
 import { supabase } from "./supabaseClient";
+import { DEFAULT_GOVERNORATE, phoneToEmail } from "./constants";
+import { upsertProfile, createVendor } from "./dbService";
 
-// القيم الافتراضية — تبقى "البصرة" دائماً كقيمة احتياطية للمحافظة
 const DEFAULT_ROLE = "patient";
-export const DEFAULT_GOVERNORATE = "البصرة";
+
+export { DEFAULT_GOVERNORATE, phoneToEmail };
 
 /**
- * تسجيل الدخول — يُرسل رمز تحقق (OTP) عبر SMS إلى رقم الهاتف.
- * يتطلب ضبط مزوّد SMS في إعدادات Supabase Auth.
- * @param {string} phone رقم الهاتف بصيغة دولية (E.164)
+ * تسجيل الدخول بالهاتف + كلمة المرور.
+ * يُحوَّل الهاتف داخلياً إلى بريد اصطناعي ثابت للمصادقة عبر Supabase.
+ * @param {string} phone
+ * @param {string} password
  */
-export async function login(phone) {
-  const { data, error } = await supabase.auth.signInWithOtp({ phone });
-  if (error) throw error;
-  return data;
-}
-
-/**
- * إنشاء حساب جديد مع دعم الأدوار (مريض / صيدلية / كوزماتك).
- * تُحفظ بيانات الملف الشخصي ضمن user_metadata ليُنشأ السجل بعد التحقق من OTP.
- * @param {object} params
- * @param {string} params.phone
- * @param {string} params.name
- * @param {"patient"|"pharmacy"|"cosmetic"} [params.role]
- */
-export async function register({
-  phone,
-  name,
-  role = DEFAULT_ROLE,
-  vendorName = null,
-  governorate = DEFAULT_GOVERNORATE,
-  address = null,
-  instagram = null,
-  tiktok = null,
-}) {
-  const { data, error } = await supabase.auth.signInWithOtp({
-    phone,
-    options: {
-      shouldCreateUser: true,
-      data: {
-        name,
-        role,
-        vendor_name: vendorName,
-        governorate: governorate || DEFAULT_GOVERNORATE,
-        address,
-        instagram,
-        tiktok,
-      },
-    },
+export async function login(phone, password) {
+  const email = phoneToEmail(phone);
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email,
+    password,
   });
   if (error) throw error;
   return data;
 }
 
 /**
- * التحقق من رمز OTP وإكمال تسجيل الدخول/التسجيل.
- * @param {string} phone
- * @param {string} token الرمز المُستلَم عبر SMS
+ * إنشاء حساب جديد مع دعم الأدوار (مريض / صيدلية / كوزماتك).
+ * للبائعين يُنشأ سجل المتجر أولاً ثم يُربَط بالملف الشخصي.
+ * يتطلب إيقاف "تأكيد البريد" في إعدادات Supabase Auth حتى تُنشأ الجلسة فوراً.
+ * @param {object} params
+ */
+export async function register({
+  phone,
+  password,
+  name,
+  role = DEFAULT_ROLE,
+  vendorName = null,
+  governorate = DEFAULT_GOVERNORATE,
+  address = null,
+  whatsapp = null,
+  instagram = null,
+  tiktok = null,
+  imageUrl = null,
+}) {
+  const email = phoneToEmail(phone);
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password,
+    options: { data: { name, phone, role } },
+  });
+  if (error) throw error;
+
+  const user = data.user;
+  if (!user) throw new Error("تعذّر إنشاء الحساب.");
+  if (!data.session) {
+    // لم تُنشأ جلسة → غالباً "تأكيد البريد" ما زال مفعّلاً في إعدادات Supabase
+    throw new Error(
+      "تعذّر إكمال التسجيل: يجب إيقاف تأكيد البريد في إعدادات Supabase Auth.",
+    );
+  }
+
+  const isVendor = role === "pharmacy" || role === "cosmetic";
+  let pharmacyId = null;
+
+  if (isVendor) {
+    const vendor = await createVendor({
+      ownerId: user.id,
+      name: vendorName || name,
+      type: role === "cosmetic" ? "cosmetic" : "pharmacy",
+      governorate: governorate || DEFAULT_GOVERNORATE,
+      address,
+      phone,
+      whatsapp,
+      instagram,
+      tiktok,
+      imageUrl,
+    });
+    pharmacyId = vendor?.id ?? null;
+  }
+
+  await upsertProfile({
+    id: user.id,
+    name,
+    phone,
+    role,
+    status: isVendor ? "approved_pending_signature" : "active",
+    pharmacy_id: pharmacyId,
+  });
+
+  return { user, pharmacyId, role };
+}
+
+/** تسجيل الخروج وإنهاء الجلسة */
+export async function logout() {
+  const { error } = await supabase.auth.signOut();
+  if (error) throw error;
+}
+
+/**
+ * التحقق من رمز OTP — غير مستخدم في وضع (هاتف + كلمة مرور).
+ * محفوظ للاكتمال المعماري وللتوسعة المستقبلية إن فُعّل مزوّد SMS.
  */
 export async function verifyOTP(phone, token) {
   const { data, error } = await supabase.auth.verifyOtp({
@@ -65,12 +107,6 @@ export async function verifyOTP(phone, token) {
   });
   if (error) throw error;
   return data;
-}
-
-/** تسجيل الخروج وإنهاء الجلسة */
-export async function logout() {
-  const { error } = await supabase.auth.signOut();
-  if (error) throw error;
 }
 
 /** المستخدم الحالي (أو null) */
