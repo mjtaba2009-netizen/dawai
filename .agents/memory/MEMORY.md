@@ -1,1 +1,3 @@
-- [Dawai dev API routing & api-server restart](dawai-dev-api-routing.md) — curl the API at `$REPLIT_DEV_DOMAIN/api/...` (not `/dawai/api`); restart api-server workflow after route edits (serves stale code); auth is unsigned base64 tokens, patient orders hardcode userId:1.
+- [Dawai Supabase backend](dawai-supabase-backend.md) — 100% Supabase (no server); migration SQL is source of truth but must be applied manually; connector can 401 in sandbox; orders RLS is role-scoped; checkout = 1 row/line; Rx/stock gates client-only.
+- [Supabase phone+password auth](supabase-phone-password-auth.md) — synthetic-email (phone@phone.dawai.app) for client-only phone+password login; required Supabase dashboard Auth settings (no SMS).
+- [Add dep to one artifact](pnpm-add-to-artifact.md) — `pnpm --filter @workspace/<pkg> add <dep>` to install into a specific monorepo artifact.

@@ -6,8 +6,6 @@ import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { AuthContext, AuthProvider, isVendor } from '@/contexts/AuthContext';
 import { CartProvider } from '@/contexts/CartContext';
-import { OrderAutomationProvider } from '@/contexts/OrderAutomationContext';
-import { OrderAutomationManager } from '@/components/OrderAutomationManager';
 import { SplashIntro } from '@/components/SplashIntro';
 import { PartnershipAgreementModal } from '@/components/PartnershipAgreementModal';
 import { Layout } from '@/components/Layout';
@@ -85,25 +83,21 @@ export default function App() {
       <TooltipProvider>
         <AuthProvider>
           <CartProvider>
-            <OrderAutomationProvider>
-              <BrowserRouter basename={ROUTER_BASENAME}>
+            <BrowserRouter basename={ROUTER_BASENAME}>
 
-                {/* ── شاشة الترحيب — خارج Layout لتغطي كامل الشاشة ── */}
-                <AnimatePresence mode="wait">
-                  {showIntro && <SplashIntro key="splash" />}
-                </AnimatePresence>
+              {/* ── شاشة الترحيب — خارج Layout لتغطي كامل الشاشة ── */}
+              <AnimatePresence mode="wait">
+                {showIntro && <SplashIntro key="splash" />}
+              </AnimatePresence>
 
-                {/* ── المحتوى الرئيسي — يُحمَّل في الخلفية أثناء الـ Splash ── */}
-                <Layout>
-                  <AppRoutes />
-                </Layout>
+              {/* ── المحتوى الرئيسي — يُحمَّل في الخلفية أثناء الـ Splash ── */}
+              <Layout>
+                <AppRoutes />
+              </Layout>
 
-                {/* لوحة الأتمتة العائمة */}
-                <OrderAutomationManager />
-                <Toaster />
+              <Toaster />
 
-              </BrowserRouter>
-            </OrderAutomationProvider>
+            </BrowserRouter>
           </CartProvider>
         </AuthProvider>
       </TooltipProvider>

@@ -1,25 +1,8 @@
-import { useState, useEffect, useCallback } from 'react';
-import { API_PREFIX } from '@/lib/api-base';
+import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Clock, ShieldCheck, ChevronLeft, CheckCircle2, XCircle, Inbox } from 'lucide-react';
-
-const BASE = API_PREFIX;
-
-interface KanbanOrder {
-  id: number;
-  status: string;
-  trackingCode: string | null;
-  quantity: number;
-  totalPrice: number;
-  createdAt: string;
-  updatedAt: string;
-  medication: {
-    id: number;
-    name: string;
-    genericName: string;
-    requiresPrescription: boolean;
-  };
-}
+import { usePharmacyOrders, useUpdateOrderStatus } from '@/services/hooks';
+import type { KanbanOrder } from '@/services/types';
 
 type ColumnKey = 'pending' | 'confirmed' | 'ready';
 
@@ -62,50 +45,18 @@ function timeAgo(iso: string): string {
   return `منذ ${Math.floor(h / 24)} ي`;
 }
 
-export function OrdersBoard({ token }: { token: string }) {
-  const [orders, setOrders] = useState<KanbanOrder[]>([]);
-  const [loading, setLoading] = useState(true);
+export function OrdersBoard({ pharmacyId }: { pharmacyId: number | null }) {
+  const { data, isLoading: loading } = usePharmacyOrders(pharmacyId ?? undefined, {
+    refetchInterval: 5000,
+  });
+  const orders = data ?? [];
+  const updateStatus = useUpdateOrderStatus();
   const [updatingId, setUpdatingId] = useState<number | null>(null);
-
-  const fetchOrders = useCallback(async () => {
-    try {
-      const res = await fetch(`${BASE}/api/pharmacy/orders`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) throw new Error();
-      setOrders(await res.json());
-    } catch {
-      /* نُبقي القائمة السابقة عند فشل الاستطلاع */
-    } finally {
-      setLoading(false);
-    }
-  }, [token]);
-
-  // استطلاع دوري كل 5 ثوانٍ
-  useEffect(() => {
-    fetchOrders();
-    const t = setInterval(fetchOrders, 5000);
-    return () => clearInterval(t);
-  }, [fetchOrders]);
 
   const advance = async (id: number, status: 'confirmed' | 'ready' | 'rejected') => {
     setUpdatingId(id);
-    // تحديث تفاؤلي — المرفوضة تختفي من الأعمدة الثلاثة
-    setOrders((prev) =>
-      status === 'rejected'
-        ? prev.filter((o) => o.id !== id)
-        : prev.map((o) => (o.id === id ? { ...o, status } : o)),
-    );
     try {
-      const res = await fetch(`${BASE}/api/pharmacy/orders/${id}/status`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ status }),
-      });
-      if (!res.ok) throw new Error();
-      await fetchOrders();
-    } catch {
-      await fetchOrders(); // تراجع عبر إعادة الجلب
+      await updateStatus.mutateAsync({ id, status });
     } finally {
       setUpdatingId(null);
     }
@@ -168,13 +119,13 @@ export function OrdersBoard({ token }: { token: string }) {
                       data-testid={`card-order-${o.id}`}
                     >
                       <div className="flex items-start justify-between gap-2 mb-1">
-                        <p className="font-bold text-slate-800 text-sm leading-tight">{o.medication.name}</p>
+                        <p className="font-bold text-slate-800 text-sm leading-tight">{o.medication?.name}</p>
                         <span className="text-[10px] text-slate-400 flex items-center gap-0.5 flex-shrink-0 mt-0.5">
                           <Clock className="w-3 h-3" />
                           {timeAgo(o.createdAt)}
                         </span>
                       </div>
-                      <p className="text-slate-400 text-xs truncate">{o.medication.genericName}</p>
+                      <p className="text-slate-400 text-xs truncate">{o.medication?.genericName}</p>
 
                       {/* رمز التتبّع — مشترك بين البائع والمريض */}
                       {o.trackingCode && (
@@ -190,7 +141,7 @@ export function OrdersBoard({ token }: { token: string }) {
                         <span className="text-emerald-700 font-bold text-sm">{o.totalPrice.toFixed(2)} IQD</span>
                         <span className="text-slate-300">•</span>
                         <span className="text-slate-500 text-xs">الكمية: {o.quantity}</span>
-                        {o.medication.requiresPrescription && (
+                        {o.medication?.requiresPrescription && (
                           <span className="text-[10px] px-1.5 py-0.5 bg-amber-50 text-amber-600 rounded-full font-medium flex items-center gap-0.5">
                             <ShieldCheck className="w-2.5 h-2.5" />
                             وصفة

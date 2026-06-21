@@ -1,8 +1,8 @@
 import { createClient } from "@supabase/supabase-js";
 
 // متغيرات البيئة الخاصة بـ Supabase — تُحقن وقت البناء عبر Vite
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
 
 // هل ضُبطت بيانات Supabase؟ تُستخدم للحماية قبل اكتمال الربط
 export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey);

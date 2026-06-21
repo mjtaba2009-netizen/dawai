@@ -11,13 +11,8 @@ import {
   ArrowRight, Phone, MessageCircle, Instagram, Music2,
   MapPin, Store, Sparkles, Pill, ShoppingCart, Clock,
 } from "lucide-react";
-import {
-  useGetPharmacy,
-  useGetPharmacyMedications,
-  getGetPharmacyQueryKey,
-  getGetPharmacyMedicationsQueryKey,
-  type Pharmacy,
-} from "@workspace/api-client-react";
+import { usePharmacy, usePharmacyInventory } from "@/services/hooks";
+import type { Pharmacy } from "@/services/types";
 import { useCart } from "@/contexts/CartContext";
 import { useToast } from "@/hooks/use-toast";
 
@@ -70,12 +65,8 @@ export function VendorProfile() {
   const vendorId = Number(id);
   const validId = Number.isFinite(vendorId) && vendorId > 0;
 
-  const { data: vendor, isLoading: loadingVendor, isError } = useGetPharmacy(vendorId, {
-    query: { queryKey: getGetPharmacyQueryKey(vendorId), enabled: validId },
-  });
-  const { data: products, isLoading: loadingProducts } = useGetPharmacyMedications(vendorId, {
-    query: { queryKey: getGetPharmacyMedicationsQueryKey(vendorId), enabled: validId },
-  });
+  const { data: vendor, isLoading: loadingVendor, isError } = usePharmacy(vendorId);
+  const { data: products, isLoading: loadingProducts } = usePharmacyInventory(vendorId);
 
   const isCosmetic = vendor?.type === "cosmetic";
 
@@ -83,7 +74,7 @@ export function VendorProfile() {
     if (!vendor) return;
     cart.addItem({
       id: p.id,
-      medicationId: p.medicationId,
+      medicationId: p.medication.id,
       pharmacyId: vendor.id,
       pharmacyName: vendor.name,
       name: p.medication.name,
@@ -94,7 +85,7 @@ export function VendorProfile() {
     toast({ title: "✅ أُضيف إلى السلة", description: p.medication.name, duration: 2000 });
   };
 
-  if (!validId || isError) {
+  if (!validId || isError || (!loadingVendor && !vendor)) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center bg-muted/20 p-8 text-center">
         <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mb-4">
@@ -171,13 +162,15 @@ export function VendorProfile() {
             animate={{ opacity: 1, y: 0 }}
             className="bg-white/80 backdrop-blur-xl rounded-2xl p-3 shadow-[0_6px_24px_rgb(0,0,0,0.08)] border border-white/60 flex gap-2 flex-wrap"
           >
-            <ContactButton
-              href={`tel:${digitsOnly(vendor.phone)}`}
-              icon={Phone}
-              label="اتصال"
-              classes="bg-emerald-500 text-white shadow-[0_3px_10px_rgba(16,185,129,0.35)]"
-              testId="button-call"
-            />
+            {vendor.phone && (
+              <ContactButton
+                href={`tel:${digitsOnly(vendor.phone)}`}
+                icon={Phone}
+                label="اتصال"
+                classes="bg-emerald-500 text-white shadow-[0_3px_10px_rgba(16,185,129,0.35)]"
+                testId="button-call"
+              />
+            )}
             {vendor.whatsapp && (
               <ContactButton
                 href={`https://wa.me/${digitsOnly(vendor.whatsapp).replace(/^\+/, "")}`}

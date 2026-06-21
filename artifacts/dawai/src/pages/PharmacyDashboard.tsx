@@ -2,16 +2,22 @@
  * PharmacyDashboard — لوحة تحكم الصيدلية
  * ─────────────────────────────────────────────────────────────────────────
  * تبويبان:
- *   1. "الطلبات الواردة" — يستخدم OrderAutomationContext لكل إجراء
+ *   1. "الطلبات الواردة" — لوحة Kanban عبر OrdersBoard (Supabase)
  *   2. "المخزون"         — إضافة / تعديل / حذف
  */
-import { useState, useEffect, useCallback, useRef } from "react";
-import { API_PREFIX } from "@/lib/api-base";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import confetti from "canvas-confetti";
-import { Plus, Pencil, Trash2, X, Package, ShoppingBag, Check, Clock, BadgeCheck, Sparkles } from "lucide-react";
+import { Plus, Pencil, Trash2, X, Package, ShoppingBag, BadgeCheck, Sparkles } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
+import {
+  usePharmacyInventory,
+  useAddCustomInventory,
+  useUpdateInventoryItem,
+  useDeleteInventoryItem,
+} from "@/services/hooks";
+import type { InventoryItem } from "@/services/types";
 import { AddMedicineForm } from "@/components/AddMedicineForm";
 import { OrdersBoard } from "@/components/OrdersBoard";
 
@@ -117,63 +123,6 @@ function WelcomeActivation({ onAddFirst }: { onAddFirst: () => void }) {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// Types
-// ═══════════════════════════════════════════════════════════════════
-interface InventoryItem {
-  id: number;
-  medicationId: number;
-  price: number;
-  quantity: number;
-  medication: {
-    id: number; name: string; genericName: string;
-    category: string; requiresPrescription: boolean;
-  };
-}
-
-interface PharmacyOrder {
-  id: number;
-  status: string;
-  quantity: number;
-  totalPrice: number;
-  createdAt: string;
-  updatedAt: string;
-  medication: {
-    id: number; name: string; genericName: string; requiresPrescription: boolean;
-  };
-}
-
-// ═══════════════════════════════════════════════════════════════════
-// usePharmacyApi — مساعد طلبات HTTP مع Bearer token
-// ═══════════════════════════════════════════════════════════════════
-const BASE = API_PREFIX;
-
-function usePharmacyApi(token: string | undefined) {
-  const h = { "Content-Type": "application/json", Authorization: `Bearer ${token ?? ""}` };
-
-  const get  = async <T,>(path: string): Promise<T> => {
-    const res = await fetch(`${BASE}${path}`, { headers: h });
-    if (!res.ok) throw new Error((await res.json())?.error ?? "خطأ");
-    return res.json();
-  };
-  const post = async <T,>(path: string, body: object): Promise<T> => {
-    const res = await fetch(`${BASE}${path}`, { method: "POST", headers: h, body: JSON.stringify(body) });
-    if (!res.ok) throw new Error((await res.json())?.error ?? "خطأ");
-    return res.json();
-  };
-  const put  = async <T,>(path: string, body: object): Promise<T> => {
-    const res = await fetch(`${BASE}${path}`, { method: "PUT", headers: h, body: JSON.stringify(body) });
-    if (!res.ok) throw new Error((await res.json())?.error ?? "خطأ");
-    return res.json();
-  };
-  const del  = async (path: string) => {
-    const res = await fetch(`${BASE}${path}`, { method: "DELETE", headers: h });
-    if (!res.ok && res.status !== 204) throw new Error((await res.json())?.error ?? "خطأ");
-  };
-
-  return { get, post, put, del };
-}
-
-// ═══════════════════════════════════════════════════════════════════
 // Edit modal for existing inventory items
 // ═══════════════════════════════════════════════════════════════════
 function ItemFormModal({
@@ -249,11 +198,14 @@ function ItemFormModal({
 export function PharmacyDashboard() {
   const { user, justActivated, clearJustActivated } = useAuth();
   const { toast } = useToast();
-  const api = usePharmacyApi(user?.token);
+
+  const pharmacyId = user?.pharmacyId ?? 0;
+  const { data: inventory = [], isLoading } = usePharmacyInventory(pharmacyId);
+  const addCustom  = useAddCustomInventory();
+  const updateItem = useUpdateInventoryItem();
+  const deleteItem = useDeleteInventoryItem();
 
   const [activeTab, setActiveTab]     = useState<"inventory" | "orders">("orders");
-  const [inventory, setInventory]     = useState<InventoryItem[]>([]);
-  const [isLoading, setIsLoading]     = useState(true);
   const [editingItem, setEditingItem] = useState<InventoryItem | null | "new">(null);
   const [deletingId, setDeletingId]   = useState<number | null>(null);
   const [showWelcome, setShowWelcome] = useState(false);
@@ -275,24 +227,24 @@ export function PharmacyDashboard() {
     setEditingItem("new");
   };
 
-  const fetchInventory = useCallback(async () => {
-    try {
-      const data = await api.get<InventoryItem[]>("/api/pharmacy/inventory");
-      setInventory(data);
-    } catch {
-      toast({ title: "خطأ في تحميل المخزون", variant: "destructive" });
-    } finally { setIsLoading(false); }
-  }, []);
-
-  useEffect(() => { fetchInventory(); }, []);
-
   const handleAddCustom = async (data: {
     medicationName: string; price: number; quantity: number; requiresPrescription: boolean;
     category: string; imageUrl?: string;
   }) => {
+    if (!user?.pharmacyId) {
+      toast({ title: "خطأ في الإضافة", description: "لا توجد صيدلية مرتبطة بالحساب", variant: "destructive" });
+      throw new Error("missing pharmacyId");
+    }
     try {
-      await api.post("/api/pharmacy/inventory/add-custom", data);
-      await fetchInventory();
+      await addCustom.mutateAsync({
+        pharmacyId: user.pharmacyId,
+        name: data.medicationName,
+        category: data.category,
+        requiresPrescription: data.requiresPrescription,
+        imageUrl: data.imageUrl ?? null,
+        price: data.price,
+        quantity: data.quantity,
+      });
       toast({ title: "✅ تمت إضافة الدواء بنجاح", description: `تم إضافة "${data.medicationName}" للمخزون` });
     } catch (err) {
       toast({ title: "خطأ في الإضافة", description: String(err), variant: "destructive" });
@@ -302,8 +254,7 @@ export function PharmacyDashboard() {
 
   const handleEdit = async (id: number, data: { price: number; quantity: number }) => {
     try {
-      await api.put(`/api/pharmacy/inventory/${id}`, data);
-      await fetchInventory();
+      await updateItem.mutateAsync({ id, updates: data });
       toast({ title: "تم التحديث بنجاح" });
     } catch (err) {
       toast({ title: "خطأ في التحديث", description: String(err), variant: "destructive" });
@@ -314,8 +265,7 @@ export function PharmacyDashboard() {
   const handleDelete = async (id: number) => {
     setDeletingId(id);
     try {
-      await api.del(`/api/pharmacy/inventory/${id}`);
-      setInventory((prev) => prev.filter((i) => i.id !== id));
+      await deleteItem.mutateAsync(id);
       toast({ title: "تم حذف الدواء من المخزون" });
     } catch (err) {
       toast({ title: "خطأ في الحذف", description: String(err), variant: "destructive" });
@@ -368,7 +318,7 @@ export function PharmacyDashboard() {
             transition={{ type: "spring", damping: 22, stiffness: 280 }}
             className="flex-1 overflow-y-auto"
           >
-            <OrdersBoard token={user?.token ?? ""} />
+            <OrdersBoard pharmacyId={user?.pharmacyId ?? null} />
           </motion.div>
         ) : (
           <motion.div key="inventory"

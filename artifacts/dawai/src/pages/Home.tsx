@@ -2,7 +2,8 @@ import { useState, useContext, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { Search, Camera, MapPin, ChevronLeft, Pill, Store, ShoppingCart, X, Upload } from 'lucide-react';
-import { useGetNearbyPharmacies, useGetAvailableMedications, type CatalogItem } from '@workspace/api-client-react';
+import { useNearbyPharmacies, useAvailableMedications } from '@/services/hooks';
+import type { CatalogItem } from '@/services/types';
 import { AuthContext } from '@/contexts/AuthContext';
 import { useCart } from '@/contexts/CartContext';
 import { useToast } from '@/hooks/use-toast';
@@ -258,10 +259,10 @@ export function Home() {
   const { toast } = useToast();
 
   // الأدوية المتاحة للطلب — من مخزون الصيدليات (الكمية > 0)
-  const { data: catalog, isLoading: loadingMeds } = useGetAvailableMedications();
+  const { data: catalog, isLoading: loadingMeds } = useAvailableMedications();
   const popularMeds = catalog ?? [];
 
-  const { data: nearbyPharmacies, isLoading: loadingPharmacies } = useGetNearbyPharmacies();
+  const { data: nearbyPharmacies, isLoading: loadingPharmacies } = useNearbyPharmacies();
 
   // ── كشف الموقع الجغرافي ──────────────────────────────────────
   useEffect(() => {
@@ -423,8 +424,8 @@ export function Home() {
                       <MedicationCard
                         key={med.id}
                         name={med.name}
-                        genericName={med.genericName}
-                        category={med.category}
+                        genericName={med.genericName ?? ''}
+                        category={med.category ?? ''}
                         requiresPrescription={med.requiresPrescription}
                         price={med.price}
                         index={i}
@@ -465,10 +466,10 @@ export function Home() {
                       <PharmacyCard
                         key={pharmacy.id}
                         name={pharmacy.name}
-                        address={pharmacy.address}
+                        address={pharmacy.address ?? ''}
                         distance={pharmacy.distance}
                         isOpen={pharmacy.isOpen}
-                        rating={pharmacy.rating ?? null}
+                        rating={pharmacy.rating || null}
                         index={i}
                         onClick={() => navigate(`/vendor/${pharmacy.id}`)}
                       />

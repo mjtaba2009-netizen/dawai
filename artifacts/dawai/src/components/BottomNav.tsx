@@ -2,7 +2,7 @@ import { useContext } from 'react';
 import { motion } from 'framer-motion';
 import { Link, useLocation } from 'react-router-dom';
 import { Home, Package, Bell, User, LayoutGrid, ShoppingCart } from 'lucide-react';
-import { useGetNotifications } from '@workspace/api-client-react';
+import { useNotifications } from '@/services/hooks';
 import { AuthContext } from '@/contexts/AuthContext';
 import { useCart } from '@/contexts/CartContext';
 
@@ -11,7 +11,7 @@ export function BottomNav() {
   const auth     = useContext(AuthContext);
   const isPharmacy = auth?.user?.role === 'pharmacy';
 
-  const { data: notifications } = useGetNotifications();
+  const { data: notifications } = useNotifications(auth?.user?.id);
   const unreadCount = notifications?.filter((n) => !n.isRead).length || 0;
 
   const { totalCount: cartCount } = useCart();

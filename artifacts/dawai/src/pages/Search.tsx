@@ -2,8 +2,7 @@ import { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowRight, MapPin, MessageCircle, ShoppingBag, Star } from 'lucide-react';
-import { useSearchMedications, useCreateOrder, getGetOrdersQueryKey, getSearchMedicationsQueryKey } from '@workspace/api-client-react';
-import { useQueryClient } from '@tanstack/react-query';
+import { useSearchMedications, useCreateOrder } from '@/services/hooks';
 import { useToast } from '@/hooks/use-toast';
 import { PrescriptionModal } from '@/components/PrescriptionModal';
 
@@ -35,16 +34,14 @@ function PharmacyResultCard({
   whatsapp: string | null; price: number; quantity: number; index: number;
 }) {
   const { toast }      = useToast();
-  const queryClient    = useQueryClient();
   const createOrder    = useCreateOrder();
   const [showPrescription, setShowPrescription] = useState(false);
 
   const doReserve = () => {
     createOrder.mutate(
-      { data: { pharmacyId, medicationId, quantity: 1 } },
+      { pharmacyId, medicationId, quantity: 1 },
       {
         onSuccess: () => {
-          queryClient.invalidateQueries({ queryKey: getGetOrdersQueryKey() });
           toast({ title: 'تم الحجز بنجاح', description: `تم حجز الدواء من ${pharmacyName}` });
         },
         onError: () => {
@@ -87,7 +84,7 @@ function PharmacyResultCard({
             <div className="flex items-center gap-3">
               <div className="bg-emerald-50 rounded-lg px-3 py-1">
                 <span className="text-emerald-700 font-bold text-sm">{price.toFixed(2)}</span>
-                <span className="text-emerald-600 text-xs mr-0.5">ر.س</span>
+                <span className="text-emerald-600 text-xs mr-0.5">IQD</span>
               </div>
               <span className="text-slate-500 text-xs">الكمية: {quantity}</span>
               {rating !== null && (
@@ -144,10 +141,8 @@ export function Search() {
   const [searchParams] = useSearchParams();
   const q = searchParams.get('q') || '';
 
-  const { data, isLoading } = useSearchMedications(
-    { q },
-    { query: { enabled: !!q, queryKey: getSearchMedicationsQueryKey({ q }) } }
-  );
+  const { data, isLoading } = useSearchMedications(q);
+  const result = data?.[0];
 
   return (
     <div className="flex-1 flex flex-col bg-muted/20">
@@ -173,7 +168,7 @@ export function Search() {
             <div className="animate-pulse h-20 bg-white rounded-2xl border border-slate-100" />
             {Array.from({ length: 3 }).map((_, i) => <PharmacyResultSkeleton key={i} />)}
           </>
-        ) : !data?.medication ? (
+        ) : !result ? (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -193,13 +188,13 @@ export function Search() {
               <div className="flex items-center gap-3">
                 <div className="w-14 h-14 bg-gradient-to-br from-emerald-100 to-teal-200 rounded-xl flex items-center justify-center text-2xl flex-shrink-0">💊</div>
                 <div>
-                  <p className="font-bold text-slate-800 text-base">{data.medication.name}</p>
-                  <p className="text-slate-400 text-xs">{data.medication.genericName}</p>
+                  <p className="font-bold text-slate-800 text-base">{result.name}</p>
+                  <p className="text-slate-400 text-xs">{result.genericName}</p>
                   <div className="flex gap-1.5 mt-1.5">
                     <span className="text-[10px] px-2 py-0.5 bg-emerald-50 text-emerald-700 rounded-full font-medium">
-                      {data.medication.category}
+                      {result.category}
                     </span>
-                    {data.medication.requiresPrescription && (
+                    {result.requiresPrescription && (
                       <span className="text-[10px] px-2 py-0.5 bg-amber-50 text-amber-600 rounded-full font-medium">
                         يستلزم وصفة طبية
                       </span>
@@ -209,24 +204,24 @@ export function Search() {
               </div>
             </motion.div>
 
-            {data.pharmacies.length > 0 ? (
+            {result.pharmacies.length > 0 ? (
               <>
                 <p className="text-slate-500 text-sm font-medium">
-                  متوفر في {data.pharmacies.length} صيدلية قريبة
+                  متوفر في {result.pharmacies.length} صيدلية قريبة
                 </p>
-                {data.pharmacies.map((hit, i) => (
+                {result.pharmacies.map((hit, i) => (
                   <PharmacyResultCard
-                    key={hit.pharmacy.id}
-                    pharmacyId={hit.pharmacy.id}
-                    medicationId={data.medication!.id}
-                    medicationName={data.medication!.name}
-                    requiresPrescription={data.medication!.requiresPrescription ?? false}
-                    pharmacyName={hit.pharmacy.name}
-                    address={hit.pharmacy.address}
-                    distance={hit.pharmacy.distance}
-                    isOpen={hit.pharmacy.isOpen}
-                    rating={hit.pharmacy.rating ?? null}
-                    whatsapp={hit.pharmacy.whatsapp ?? null}
+                    key={hit.pharmacyId}
+                    pharmacyId={hit.pharmacyId}
+                    medicationId={result.id}
+                    medicationName={result.name}
+                    requiresPrescription={result.requiresPrescription ?? false}
+                    pharmacyName={hit.pharmacyName}
+                    address={hit.address ?? ''}
+                    distance={hit.distance}
+                    isOpen={hit.isOpen}
+                    rating={hit.rating || null}
+                    whatsapp={hit.whatsapp ?? null}
                     price={hit.price}
                     quantity={hit.quantity}
                     index={i}

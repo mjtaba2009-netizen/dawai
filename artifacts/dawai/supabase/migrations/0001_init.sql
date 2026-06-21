@@ -160,7 +160,15 @@ drop policy if exists orders_update on public.orders;
 create policy orders_update on public.orders for update to authenticated using (
   user_id = auth.uid()
   or pharmacy_id in (select pharmacy_id from public.profiles where id = auth.uid())
-) with check (true);
+) with check (
+  -- المريض: يحدّث طلبه الخاص فقط إلى "تم الاستلام"
+  (user_id = auth.uid() and status = 'received')
+  -- البائع: يحدّث طلبات متجره فقط إلى الحالات التي يتحكم بها
+  or (
+    pharmacy_id in (select pharmacy_id from public.profiles where id = auth.uid())
+    and status in ('confirmed','ready','rejected','delivered')
+  )
+);
 
 -- notifications: user manages own
 drop policy if exists notifications_self on public.notifications;

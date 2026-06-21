@@ -1,11 +1,8 @@
+import { useContext } from "react";
 import { motion } from "framer-motion";
 import { Bell, Package, Tag, Info } from "lucide-react";
-import {
-  useGetNotifications,
-  useMarkNotificationRead,
-  getGetNotificationsQueryKey,
-} from "@workspace/api-client-react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useNotifications, useMarkNotificationRead } from "@/services/hooks";
+import { AuthContext } from "@/contexts/AuthContext";
 
 // أيقونة حسب نوع الإشعار
 function NotificationIcon({ type }: { type: string }) {
@@ -55,19 +52,12 @@ function NotifSkeleton() {
 }
 
 export function Notifications() {
-  const queryClient = useQueryClient();
-  const { data: notifications, isLoading } = useGetNotifications();
+  const auth = useContext(AuthContext);
+  const { data: notifications, isLoading } = useNotifications(auth?.user?.id);
   const markRead = useMarkNotificationRead();
 
   const handleMarkRead = (id: number) => {
-    markRead.mutate(
-      { id },
-      {
-        onSuccess: () => {
-          queryClient.invalidateQueries({ queryKey: getGetNotificationsQueryKey() });
-        },
-      }
-    );
+    markRead.mutate(id);
   };
 
   const unreadCount = notifications?.filter((n) => !n.isRead).length ?? 0;

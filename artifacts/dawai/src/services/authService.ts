@@ -1,18 +1,18 @@
+import type { AuthChangeEvent, Session, User } from "@supabase/supabase-js";
 import { supabase } from "./supabaseClient";
 import { DEFAULT_GOVERNORATE, phoneToEmail } from "./constants";
 import { upsertProfile, createVendor } from "./dbService";
+import type { UserRole } from "./types";
 
-const DEFAULT_ROLE = "patient";
+const DEFAULT_ROLE: UserRole = "patient";
 
 export { DEFAULT_GOVERNORATE, phoneToEmail };
 
 /**
  * تسجيل الدخول بالهاتف + كلمة المرور.
  * يُحوَّل الهاتف داخلياً إلى بريد اصطناعي ثابت للمصادقة عبر Supabase.
- * @param {string} phone
- * @param {string} password
  */
-export async function login(phone, password) {
+export async function login(phone: string, password: string) {
   const email = phoneToEmail(phone);
   const { data, error } = await supabase.auth.signInWithPassword({
     email,
@@ -22,25 +22,42 @@ export async function login(phone, password) {
   return data;
 }
 
+interface RegisterParams {
+  phone: string;
+  password: string;
+  name: string;
+  role?: UserRole;
+  vendorName?: string | null;
+  governorate?: string | null;
+  address?: string | null;
+  whatsapp?: string | null;
+  instagram?: string | null;
+  tiktok?: string | null;
+  imageUrl?: string | null;
+}
+
 /**
  * إنشاء حساب جديد مع دعم الأدوار (مريض / صيدلية / كوزماتك).
  * للبائعين يُنشأ سجل المتجر أولاً ثم يُربَط بالملف الشخصي.
  * يتطلب إيقاف "تأكيد البريد" في إعدادات Supabase Auth حتى تُنشأ الجلسة فوراً.
- * @param {object} params
  */
-export async function register({
-  phone,
-  password,
-  name,
-  role = DEFAULT_ROLE,
-  vendorName = null,
-  governorate = DEFAULT_GOVERNORATE,
-  address = null,
-  whatsapp = null,
-  instagram = null,
-  tiktok = null,
-  imageUrl = null,
-}) {
+export async function register(
+  params: RegisterParams,
+): Promise<{ user: User; pharmacyId: number | null; role: UserRole }> {
+  const {
+    phone,
+    password,
+    name,
+    role = DEFAULT_ROLE,
+    vendorName = null,
+    governorate = DEFAULT_GOVERNORATE,
+    address = null,
+    whatsapp = null,
+    instagram = null,
+    tiktok = null,
+    imageUrl = null,
+  } = params;
+
   const email = phoneToEmail(phone);
   const { data, error } = await supabase.auth.signUp({
     email,
@@ -59,7 +76,7 @@ export async function register({
   }
 
   const isVendor = role === "pharmacy" || role === "cosmetic";
-  let pharmacyId = null;
+  let pharmacyId: number | null = null;
 
   if (isVendor) {
     const vendor = await createVendor({
@@ -74,7 +91,7 @@ export async function register({
       tiktok,
       imageUrl,
     });
-    pharmacyId = vendor?.id ?? null;
+    pharmacyId = vendor.id;
   }
 
   await upsertProfile({
@@ -90,7 +107,7 @@ export async function register({
 }
 
 /** تسجيل الخروج وإنهاء الجلسة */
-export async function logout() {
+export async function logout(): Promise<void> {
   const { error } = await supabase.auth.signOut();
   if (error) throw error;
 }
@@ -99,7 +116,7 @@ export async function logout() {
  * التحقق من رمز OTP — غير مستخدم في وضع (هاتف + كلمة مرور).
  * محفوظ للاكتمال المعماري وللتوسعة المستقبلية إن فُعّل مزوّد SMS.
  */
-export async function verifyOTP(phone, token) {
+export async function verifyOTP(phone: string, token: string) {
   const { data, error } = await supabase.auth.verifyOtp({
     phone,
     token,
@@ -110,19 +127,23 @@ export async function verifyOTP(phone, token) {
 }
 
 /** المستخدم الحالي (أو null) */
-export async function getCurrentUser() {
+export async function getCurrentUser(): Promise<User | null> {
   const { data, error } = await supabase.auth.getUser();
-  if (error) throw error;
+  if (error) return null;
   return data.user;
 }
 
 /** الجلسة الحالية (أو null) */
-export async function getSession() {
+export async function getSession(): Promise<Session | null> {
   const { data } = await supabase.auth.getSession();
   return data.session;
 }
 
 /** الاشتراك في تغيّرات حالة المصادقة */
-export function onAuthStateChange(callback) {
-  return supabase.auth.onAuthStateChange((_event, session) => callback(session));
+export function onAuthStateChange(
+  callback: (event: AuthChangeEvent, session: Session | null) => void,
+) {
+  return supabase.auth.onAuthStateChange((event, session) =>
+    callback(event, session),
+  );
 }

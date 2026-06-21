@@ -1,10 +1,9 @@
 import { useContext, useState } from "react";
 import { motion } from "framer-motion";
 import { Package, CheckCircle2 } from "lucide-react";
-import { useGetOrders } from "@workspace/api-client-react";
+import { usePatientOrders, useMarkOrderReceived } from "@/services/hooks";
 import { OrderTracker } from "@/components/OrderTracker";
 import { AuthContext } from "@/contexts/AuthContext";
-import { API_PREFIX } from "@/lib/api-base";
 import { useToast } from "@/hooks/use-toast";
 
 const ACTIVE_STATUSES = new Set(["pending", "confirmed", "ready"]);
@@ -42,25 +41,20 @@ function OrderSkeleton() {
 }
 
 export function Orders() {
-  const { data: orders, isLoading, refetch } = useGetOrders();
   const auth = useContext(AuthContext);
+  const { data: orders, isLoading } = usePatientOrders(auth?.user?.id);
+  const markReceived = useMarkOrderReceived();
   const { toast } = useToast();
   const [confirmingId, setConfirmingId] = useState<number | null>(null);
 
   const handleReceived = async (orderId: number) => {
-    const token = auth?.user?.token;
-    if (!token) {
+    if (!auth?.user?.id) {
       toast({ title: "يجب تسجيل الدخول", variant: "destructive" });
       return;
     }
     setConfirmingId(orderId);
     try {
-      const res = await fetch(`${API_PREFIX}/api/orders/${orderId}/received`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) throw new Error();
-      await refetch();
+      await markReceived.mutateAsync(orderId);
       toast({ title: "✅ تم تأكيد استلام الطلب", duration: 2000 });
     } catch {
       toast({ title: "تعذّر تأكيد الاستلام", variant: "destructive" });
@@ -119,10 +113,10 @@ export function Orders() {
                         <div className="w-12 h-12 flex-shrink-0 bg-gradient-to-br from-emerald-100 to-teal-200 rounded-xl flex items-center justify-center text-xl">💊</div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-start justify-between gap-2">
-                            <p className="font-bold text-slate-800 text-sm leading-tight">{order.medication.name}</p>
+                            <p className="font-bold text-slate-800 text-sm leading-tight">{order.medication?.name}</p>
                             <span className={`flex-shrink-0 text-[10px] px-2 py-0.5 rounded-full font-semibold ${status.classes}`}>{status.label}</span>
                           </div>
-                          <p className="text-slate-400 text-xs mt-0.5 truncate">{order.pharmacy.name}</p>
+                          <p className="text-slate-400 text-xs mt-0.5 truncate">{order.pharmacy?.name}</p>
                           <div className="flex items-center gap-3 mt-1">
                             <span className="text-emerald-700 font-bold text-sm">{order.totalPrice.toFixed(2)} IQD</span>
                             <span className="text-slate-300">•</span>
@@ -181,10 +175,10 @@ export function Orders() {
                         <div className="w-10 h-10 flex-shrink-0 bg-slate-100 rounded-xl flex items-center justify-center text-lg">💊</div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between gap-2">
-                            <p className="font-semibold text-slate-600 text-sm truncate">{order.medication.name}</p>
+                            <p className="font-semibold text-slate-600 text-sm truncate">{order.medication?.name}</p>
                             <span className={`flex-shrink-0 text-[10px] px-2 py-0.5 rounded-full font-semibold ${status.classes}`}>{status.label}</span>
                           </div>
-                          <p className="text-slate-400 text-xs mt-0.5">{order.pharmacy.name} · {formatDate(order.createdAt)}</p>
+                          <p className="text-slate-400 text-xs mt-0.5">{order.pharmacy?.name} · {formatDate(order.createdAt)}</p>
                         </div>
                       </div>
                     </motion.div>

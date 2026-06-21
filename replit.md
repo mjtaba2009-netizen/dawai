@@ -1,36 +1,52 @@
-# [Project name]
+# دوائي — Dawai
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+Dawai is an Arabic, right-to-left medical marketplace where patients browse pharmacies
+and cosmetic shops, order medicines/products, and track orders, while vendors manage
+inventory and incoming orders from a Kanban dashboard. Prices are shown in IQD.
 
 ## Run & Operate
 
-- `pnpm --filter @workspace/api-server run dev` — run the API server (port 5000)
+- `pnpm --filter @workspace/dawai run dev` — run the Dawai web app (Vite dev server)
+- `pnpm --filter @workspace/dawai run build` — production build of the web app
 - `pnpm run typecheck` — full typecheck across all packages
 - `pnpm run build` — typecheck + build all packages
-- `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
-- `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
-- Required env: `DATABASE_URL` — Postgres connection string
+- Required env (client build): `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`
 
 ## Stack
 
 - pnpm workspaces, Node.js 24, TypeScript 5.9
-- API: Express 5
-- DB: PostgreSQL + Drizzle ORM
-- Validation: Zod (`zod/v4`), `drizzle-zod`
-- API codegen: Orval (from OpenAPI spec)
-- Build: esbuild (CJS bundle)
+- Frontend: React 19 + Vite + Tailwind CSS v4, Framer Motion (glassmorphism UI)
+- Data layer: TanStack Query over a local Supabase service layer
+- Backend: Supabase — Auth + Postgres + Storage (no custom server)
+- Auth: phone + password mapped to a synthetic email under the hood (no SMS/OTP)
 
 ## Where things live
 
-_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
+- Web app: `artifacts/dawai/`
+- Supabase service layer (source of truth for data access):
+  `artifacts/dawai/src/services/` — `supabaseClient.ts`, `authService.ts`,
+  `dbService.ts`, `hooks.ts` (TanStack Query), `types.ts`, `constants.ts`
+- Database schema, RLS policies, storage buckets, and seed data:
+  `artifacts/dawai/supabase/migrations/0001_init.sql` (source of truth)
+- Auth/session state: `artifacts/dawai/src/contexts/AuthContext.tsx`
+- Routing base name: `artifacts/dawai/src/lib/api-base.ts`
 
 ## Architecture decisions
 
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
+- The app talks directly to Supabase from the client (no Express/API server). The
+  previous Express + Drizzle + OpenAPI/Orval backend was fully removed.
+- Row Level Security enforces access: public read for catalog/vendors; profile and
+  notification rows are self-scoped; order updates are split — a patient may only move
+  their own order to `received`, while a vendor may set their pharmacy's orders to
+  `confirmed`/`ready`/`rejected`/`delivered`.
+- The default governorate is البصرة (Basra). Vendor socials are TikTok/Instagram only.
 
 ## Product
 
-_Describe the high-level user-facing capabilities of this app once they exist._
+- Patients: browse pharmacies/cosmetic shops, search medicines, cart + checkout,
+  track orders (tracking code `#DW-XXXX`), confirm receipt, notifications.
+- Vendors (pharmacy/cosmetic): KYC registration + digital partnership signature gate,
+  Kanban order board, inventory management.
 
 ## User preferences
 
@@ -38,7 +54,10 @@ _Populate as you build — explicit user instructions worth remembering across s
 
 ## Gotchas
 
-_Populate as you build — sharp edges, "always run X before Y" rules._
+- The Replit-managed PostgreSQL module (`DATABASE_URL` / `PG*`) is a leftover from the
+  old stack and is NOT used by the app — all data lives in Supabase. Safe to ignore.
+- Schema/RLS changes must be made in `0001_init.sql` AND applied to the live Supabase
+  project; the migration file alone does not run automatically.
 
 ## Pointers
 

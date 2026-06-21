@@ -1,5 +1,13 @@
-import React, { createContext, useState, useEffect, useContext, ReactNode } from 'react';
-import { API_PREFIX } from '@/lib/api-base';
+import { createContext, useState, useEffect, useContext, ReactNode } from 'react';
+import {
+  login as svcLogin,
+  register as svcRegister,
+  logout as svcLogout,
+  getSession,
+  onAuthStateChange,
+} from '@/services/authService';
+import { getProfile, updateProfileStatus } from '@/services/dbService';
+import { DEFAULT_GOVERNORATE } from '@/services/constants';
 
 export type UserRole = 'patient' | 'pharmacy' | 'cosmetic';
 
@@ -14,11 +22,11 @@ export interface VendorRegistrationData {
 }
 
 // حالة الحساب — 'approved_pending_signature' تعني أن مستندات الصيدلية اعتُمدت
-// من فريق الدعم وتنتظر التوقيع الرقمي على اتفاقية الانضمام لتفعيلها.
+// وتنتظر التوقيع الرقمي على اتفاقية الانضمام لتفعيلها.
 export type AccountStatus = 'active' | 'approved_pending_signature';
 
 export interface AuthUser {
-  id: number;
+  id: string;
   name: string;
   phone: string;
   avatar: string | null;
@@ -48,97 +56,89 @@ interface AuthContextType {
 
 export const AuthContext = createContext<AuthContextType | null>(null);
 
-const BASE = API_PREFIX;
-
-async function apiPost<T>(path: string, body: object, token?: string): Promise<T> {
-  const res = await fetch(`${BASE}/api${path}`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    body: JSON.stringify(body),
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data?.error ?? 'حدث خطأ');
-  return data as T;
-}
-
-interface ApiUser {
-  id: number;
-  name: string;
-  phone: string;
-  avatar?: string | null;
-  role: UserRole;
-  status?: AccountStatus | null;
-  pharmacyId?: number | null;
-}
-
-interface ApiAuthResponse {
-  token: string;
-  user: ApiUser;
-}
-
-// نطبّع قيمة الحالة — أي قيمة قديمة/مفقودة تُعامل كـ 'active' حتى لا نحجب المستخدمين الحاليين.
-const normalizeStatus = (status?: AccountStatus | null): AccountStatus =>
+// نطبّع قيمة الحالة — أي قيمة قديمة/مفقودة تُعامل كـ 'active'.
+const normalizeStatus = (status?: string | null): AccountStatus =>
   status === 'approved_pending_signature' ? 'approved_pending_signature' : 'active';
+
+// نبني مستخدم الواجهة من الملف الشخصي المخزّن في Supabase.
+async function buildUser(userId: string, token = ''): Promise<AuthUser | null> {
+  const profile = await getProfile(userId);
+  if (!profile) return null;
+  return {
+    id: profile.id,
+    name: profile.name ?? '',
+    phone: profile.phone ?? '',
+    avatar: profile.avatar,
+    role: profile.role,
+    status: normalizeStatus(profile.status),
+    pharmacyId: profile.pharmacyId,
+    token,
+  };
+}
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
-  // علامة مؤقتة (لا تُحفظ) — تُستخدم لإطلاق الاحتفال (Confetti + شاشة الترحيب) مرة واحدة بعد التفعيل.
+  // علامة مؤقتة — تُطلق الاحتفال (Confetti + الترحيب) مرة واحدة بعد التفعيل.
   const [justActivated, setJustActivated] = useState(false);
 
-  // عند فتح التطبيق، نتحقق هل هناك مستخدم مسجل مسبقاً في الذاكرة؟
+  // عند الإقلاع: نستعيد الجلسة من Supabase ونبني المستخدم من ملفه الشخصي.
   useEffect(() => {
-    const savedUser = localStorage.getItem('dawai_user');
-    if (savedUser) {
+    let active = true;
+
+    (async () => {
       try {
-        const parsed = JSON.parse(savedUser) as AuthUser;
-        // تطبيع الحالة للمستخدمين المحفوظين قبل إضافة حقل status
-        setUser({ ...parsed, status: normalizeStatus(parsed.status) });
+        const session = await getSession();
+        if (session?.user) {
+          const authUser = await buildUser(session.user.id, session.access_token);
+          if (active && authUser) setUser(authUser);
+        }
       } catch {
-        localStorage.removeItem('dawai_user');
+        /* تجاهل أخطاء الاستعادة */
+      } finally {
+        if (active) setLoading(false);
       }
-    }
-    setLoading(false);
+    })();
+
+    const { data: sub } = onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT' || !session) {
+        setUser(null);
+      } else if (event === 'TOKEN_REFRESHED') {
+        setUser((u) => (u ? { ...u, token: session.access_token } : u));
+      }
+    });
+
+    return () => {
+      active = false;
+      sub.subscription.unsubscribe();
+    };
   }, []);
 
-  // دالة تسجيل الدخول المباشر (تأخذ بيانات المستخدم مباشرةً)
-  const login = (userData: AuthUser) => {
-    setUser(userData);
-    localStorage.setItem('dawai_user', JSON.stringify(userData)); // حفظ في الذاكرة
-  };
+  // تسجيل دخول مباشر (يأخذ بيانات المستخدم مباشرةً)
+  const login = (userData: AuthUser) => setUser(userData);
 
-  // دالة تسجيل الخروج
+  // تسجيل الخروج — ينهي جلسة Supabase وينظّف الحالة المحلية.
   const logout = () => {
-    setUser(null);
     setJustActivated(false);
+    setUser(null);
+    void svcLogout().catch(() => undefined);
     localStorage.removeItem('dawai_user');
     localStorage.removeItem('token');
     localStorage.removeItem('user');
   };
 
-  const toAuthUser = (data: ApiAuthResponse, fallbackRole: UserRole): AuthUser => ({
-    id: data.user.id,
-    name: data.user.name,
-    phone: data.user.phone,
-    avatar: data.user.avatar ?? null,
-    role: data.user.role ?? fallbackRole,
-    status: normalizeStatus(data.user.status),
-    pharmacyId: data.user.pharmacyId ?? null,
-    token: data.token,
-  });
-
-  // تسجيل الدخول عبر API
+  // تسجيل الدخول: هاتف + كلمة مرور عبر Supabase.
   const apiLogin = async (phone: string, password: string): Promise<AuthUser> => {
-    const data = await apiPost<ApiAuthResponse>('/auth/login', { phone, password });
-    const authUser = toAuthUser(data, 'patient');
+    const data = await svcLogin(phone, password);
+    const userId = data.user?.id;
+    if (!userId) throw new Error('فشل تسجيل الدخول');
+    const authUser = await buildUser(userId, data.session?.access_token ?? '');
+    if (!authUser) throw new Error('تعذّر تحميل الملف الشخصي');
     login(authUser);
     return authUser;
   };
 
-  // إنشاء حساب جديد عبر API
+  // إنشاء حساب جديد (مريض/صيدلية/كوزماتك) عبر Supabase.
   const apiRegister = async (
     name: string,
     phone: string,
@@ -146,14 +146,20 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     role: UserRole,
     vendorData?: VendorRegistrationData
   ): Promise<AuthUser> => {
-    const data = await apiPost<ApiAuthResponse>('/auth/register', {
+    const result = await svcRegister({
       name,
       phone,
       password,
       role,
-      ...(vendorData ?? {}),
+      vendorName: vendorData?.vendorName ?? null,
+      governorate: vendorData?.governorate || DEFAULT_GOVERNORATE,
+      address: vendorData?.address ?? null,
+      instagram: vendorData?.instagram ?? null,
+      tiktok: vendorData?.tiktok ?? null,
     });
-    const authUser = toAuthUser(data, role);
+    const session = await getSession();
+    const authUser = await buildUser(result.user.id, session?.access_token ?? '');
+    if (!authUser) throw new Error('تعذّر تحميل الملف الشخصي');
     login(authUser);
     return authUser;
   };
@@ -161,15 +167,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   // تفعيل الحساب بعد التوقيع الرقمي — يحدّث الحالة إلى 'active' ويُطلق الاحتفال.
   const activateAccount = async (): Promise<void> => {
     if (!user) throw new Error('لا يوجد مستخدم مسجّل');
-    const data = await apiPost<{ user: ApiUser }>('/pharmacy/activate', {}, user.token);
-    const updated: AuthUser = {
-      ...user,
-      name: data.user.name ?? user.name,
-      role: data.user.role ?? user.role,
-      status: normalizeStatus(data.user.status),
-      pharmacyId: data.user.pharmacyId ?? user.pharmacyId,
-    };
-    login(updated);
+    await updateProfileStatus(user.id, 'active');
+    login({ ...user, status: 'active' });
     setJustActivated(true);
   };
 

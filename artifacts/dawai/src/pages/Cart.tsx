@@ -1,9 +1,8 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { useQueryClient } from '@tanstack/react-query';
 import { ShoppingCart, Trash2, Plus, Minus, ChevronRight, Pill, ShieldCheck, Store } from 'lucide-react';
-import { createOrder, getGetOrdersQueryKey } from '@workspace/api-client-react';
+import { useCreateOrder } from '@/services/hooks';
 import { useCart } from '@/contexts/CartContext';
 import { PrescriptionModal } from '@/components/PrescriptionModal';
 import { useToast } from '@/hooks/use-toast';
@@ -11,7 +10,7 @@ import { useToast } from '@/hooks/use-toast';
 export function Cart() {
   const { items, removeItem, updateQty, clearCart, totalCount, totalPrice, hasPrescriptionItem } = useCart();
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
+  const createOrder = useCreateOrder();
   const { toast } = useToast();
   const [submitting, setSubmitting] = useState(false);
   const [showRxGate, setShowRxGate] = useState(false);
@@ -27,7 +26,7 @@ export function Cart() {
     try {
       for (const item of items) {
         try {
-          await createOrder({
+          await createOrder.mutateAsync({
             pharmacyId: item.pharmacyId,
             medicationId: item.medicationId,
             quantity: item.quantity,
@@ -36,14 +35,6 @@ export function Cart() {
         } catch {
           failures++;
         }
-      }
-
-      // تحديث طلبات المريض (react-query) — طلبات الصيدلية تُحدَّث عبر الاستطلاع الدوري
-      // فشل التحديث لا يجب أن يمنع تغذية المستخدم الراجعة
-      try {
-        await queryClient.invalidateQueries({ queryKey: getGetOrdersQueryKey() });
-      } catch {
-        /* تجاهل: الاستعلام سيُعاد جلبه عند فتح صفحة الطلبات */
       }
 
       if (failures === 0) {
