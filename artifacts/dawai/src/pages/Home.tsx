@@ -110,17 +110,24 @@ function MedicationCard({
 
 // ── بطاقة الصيدلية ────────────────────────────────────────────
 function PharmacyCard({
-  name, address, distance, isOpen, rating, index,
+  name, address, distance, isOpen, rating, index, onClick,
 }: {
   name: string; address: string; distance: number;
   isOpen: boolean; rating: number | null; index: number;
+  onClick: () => void;
 }) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.1, duration: 0.4 }}
-      className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 flex items-center gap-3"
+      whileTap={{ scale: 0.98 }}
+      onClick={onClick}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onClick(); }}
+      className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 flex items-center gap-3 cursor-pointer hover:border-emerald-200 transition-colors"
+      data-testid={`card-pharmacy-${index}`}
     >
       <div className="w-12 h-12 flex-shrink-0 bg-gradient-to-br from-emerald-100 to-teal-200 rounded-xl flex items-center justify-center">
         <Store className="w-6 h-6 text-emerald-600" />
@@ -463,6 +470,7 @@ export function Home() {
                         isOpen={pharmacy.isOpen}
                         rating={pharmacy.rating ?? null}
                         index={i}
+                        onClick={() => navigate(`/vendor/${pharmacy.id}`)}
                       />
                     ))
                   : (

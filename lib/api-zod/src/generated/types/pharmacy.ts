@@ -5,10 +5,14 @@
  * Dawai - Medication finder API
  * OpenAPI spec version: 0.1.0
  */
+import type { PharmacyType } from './pharmacyType';
 
 export interface Pharmacy {
   id: number;
   name: string;
+  /** Vendor type */
+  type: PharmacyType;
+  governorate: string;
   address: string;
   /** Distance in km */
   distance: number;
@@ -16,6 +20,10 @@ export interface Pharmacy {
   phone: string;
   /** @nullable */
   whatsapp?: string | null;
+  /** @nullable */
+  instagram?: string | null;
+  /** @nullable */
+  tiktok?: string | null;
   /** @nullable */
   rating?: number | null;
   /** @nullable */

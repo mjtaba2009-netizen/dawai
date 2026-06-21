@@ -1,7 +1,11 @@
+import { useContext, useState } from "react";
 import { motion } from "framer-motion";
-import { Package } from "lucide-react";
+import { Package, CheckCircle2 } from "lucide-react";
 import { useGetOrders } from "@workspace/api-client-react";
 import { OrderTracker } from "@/components/OrderTracker";
+import { AuthContext } from "@/contexts/AuthContext";
+import { API_PREFIX } from "@/lib/api-base";
+import { useToast } from "@/hooks/use-toast";
 
 const ACTIVE_STATUSES = new Set(["pending", "confirmed", "ready"]);
 
@@ -15,6 +19,7 @@ const STATUS_MAP: Record<string, { label: string; classes: string }> = {
   pending:   { label: "قيد المراجعة",    classes: "bg-amber-50 text-amber-700"   },
   confirmed: { label: "تم التأكيد",      classes: "bg-blue-50 text-blue-700"     },
   ready:     { label: "جاهز للاستلام",  classes: "bg-emerald-50 text-emerald-700" },
+  delivered: { label: "تم الاستلام",     classes: "bg-emerald-50 text-emerald-700" },
   completed: { label: "مكتمل",           classes: "bg-slate-100 text-slate-600"  },
   cancelled: { label: "ملغي",            classes: "bg-red-50 text-red-600"       },
   rejected:  { label: "مرفوض",           classes: "bg-red-50 text-red-600"       },
@@ -37,7 +42,32 @@ function OrderSkeleton() {
 }
 
 export function Orders() {
-  const { data: orders, isLoading } = useGetOrders();
+  const { data: orders, isLoading, refetch } = useGetOrders();
+  const auth = useContext(AuthContext);
+  const { toast } = useToast();
+  const [confirmingId, setConfirmingId] = useState<number | null>(null);
+
+  const handleReceived = async (orderId: number) => {
+    const token = auth?.user?.token;
+    if (!token) {
+      toast({ title: "يجب تسجيل الدخول", variant: "destructive" });
+      return;
+    }
+    setConfirmingId(orderId);
+    try {
+      const res = await fetch(`${API_PREFIX}/api/orders/${orderId}/received`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error();
+      await refetch();
+      toast({ title: "✅ تم تأكيد استلام الطلب", duration: 2000 });
+    } catch {
+      toast({ title: "تعذّر تأكيد الاستلام", variant: "destructive" });
+    } finally {
+      setConfirmingId(null);
+    }
+  };
 
   const active    = orders?.filter((o) => ACTIVE_STATUSES.has(o.status)) ?? [];
   const completed = orders?.filter((o) => !ACTIVE_STATUSES.has(o.status)) ?? [];
@@ -94,15 +124,38 @@ export function Orders() {
                           </div>
                           <p className="text-slate-400 text-xs mt-0.5 truncate">{order.pharmacy.name}</p>
                           <div className="flex items-center gap-3 mt-1">
-                            <span className="text-emerald-700 font-bold text-sm">{order.totalPrice.toFixed(2)} ر.س</span>
+                            <span className="text-emerald-700 font-bold text-sm">{order.totalPrice.toFixed(2)} IQD</span>
                             <span className="text-slate-300">•</span>
                             <span className="text-slate-400 text-xs">{formatDate(order.createdAt)}</span>
                           </div>
+                          {/* رمز التتبّع — مشترك بين المريض والبائع */}
+                          {order.trackingCode && (
+                            <span
+                              className="inline-block mt-1.5 text-[11px] font-bold tracking-wide px-2 py-0.5 rounded-lg bg-emerald-50 text-emerald-700 font-mono"
+                              data-testid={`text-tracking-${order.id}`}
+                            >
+                              {order.trackingCode}
+                            </span>
+                          )}
                         </div>
                       </div>
 
                       {/* شريط تتبع الطلب */}
                       <OrderTracker status={order.status} />
+
+                      {/* تأكيد الاستلام — يظهر عندما يصبح الطلب جاهزاً */}
+                      {order.status === "ready" && (
+                        <motion.button
+                          whileTap={{ scale: 0.97 }}
+                          onClick={() => handleReceived(order.id)}
+                          disabled={confirmingId === order.id}
+                          className="mt-3 w-full h-10 rounded-xl bg-emerald-500 text-white font-bold text-sm flex items-center justify-center gap-1.5 shadow-[0_3px_10px_rgba(16,185,129,0.35)] disabled:opacity-60"
+                          data-testid={`button-received-${order.id}`}
+                        >
+                          <CheckCircle2 className="w-4 h-4" />
+                          تم استلام الطلب
+                        </motion.button>
+                      )}
                     </motion.div>
                   );
                 })}

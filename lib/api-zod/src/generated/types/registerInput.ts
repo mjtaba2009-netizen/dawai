@@ -5,9 +5,20 @@
  * Dawai - Medication finder API
  * OpenAPI spec version: 0.1.0
  */
+import type { RegisterInputRole } from './registerInputRole';
 
 export interface RegisterInput {
   name: string;
   phone: string;
   password: string;
+  role?: RegisterInputRole;
+  /** Display name of the pharmacy/cosmetic store (vendor) */
+  vendorName?: string;
+  address?: string;
+  governorate?: string;
+  workingHours?: string;
+  /** Instagram profile URL (required for cosmetic vendors) */
+  instagram?: string;
+  /** TikTok profile URL */
+  tiktok?: string;
 }

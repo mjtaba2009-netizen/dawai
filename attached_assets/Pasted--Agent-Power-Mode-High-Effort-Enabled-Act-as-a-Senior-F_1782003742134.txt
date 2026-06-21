@@ -1,0 +1,34 @@
+@Agent (Power Mode + High Effort Enabled):
+Act as a Senior Full-Stack Architect. We are expanding the "Dawai" platform into a multi-vendor marketplace by adding a "Cosmetic" (كوزماتك) vendor role, revamping the order lifecycle with tracking codes, and creating public vendor profiles. Execute these 5 phases flawlessly.
+
+### Phase 1: Authentication & Onboarding (The Cosmetic Role)
+1. In the Auth/Login component, add a 3rd account type: "كوزماتك" (Cosmetic).
+2. Create `CosmeticRegistrationForm.jsx`. Instead of a pharmacy certificate, mandate an input for "رابط حساب الإنستغرام" (Instagram URL) as proof of business. 
+3. Both Pharmacy and Cosmetic roles MUST be routed to the Digital Signature Modal (Terms & Conditions) before their account status becomes 'active'.
+
+### Phase 2: Dynamic Dashboards & Categories
+1. Dashboard Access: Both Pharmacies and Cosmetics get access to a vendor dashboard, but product categories must be strictly filtered based on `user.role`.
+2. When a Pharmacy adds a product, the dropdown categories MUST be exactly: (مسكنات - مضادات حيوية - فيتامينات - امراض مزمنة - اجهزة طبية).
+3. When a Cosmetic adds a product, the dropdown categories MUST be exactly: (فيتامينات - سكن كير - مكياج).
+
+### Phase 3: Order Lifecycle & Tracking Codes
+1. Order Generation: Whenever ANY order is placed, generate a unique tracking code (e.g., #DW-A8B2) and attach it to the order object. Display this code prominently to both the patient and the vendor.
+2. Vendor Order Board (`OrdersBoard.jsx`): For incoming "New Orders", add two buttons: "قبول الطلب" (Accept Order - Emerald) and "رفض الطلب" (Reject Order - Red).
+3. Patient Orders (`MyOrders.jsx`): Separate the patient's view from the vendor's view. In the patient's active orders list, add a button "تم استلام الطلب" (Order Received). Clicking it changes the order status to 'Delivered' and updates the vendor's dashboard immediately.
+
+### Phase 4: Public Clickable Vendor Profiles
+1. Create a new dynamic route `/vendor/:id` (`VendorProfile.jsx`).
+2. Make all Pharmacy and Cosmetic cards across the app clickable. When clicked, navigate to their public profile.
+3. The Vendor Profile must display:
+   - Vendor Name & Type (Pharmacy or Cosmetic).
+   - Location (Iraqi Governorate - Default: Basrah) & Address.
+   - Contact Buttons: Call (Phone) and WhatsApp. (Use TikTok/Insta if applicable).
+   - A Glassmorphism Grid displaying ALL products added by this specific vendor.
+
+### Phase 5: Global Constraints & Cleanup
+- UI Standard: Maintain the Emerald Glassmorphism aesthetic and Framer Motion transitions.
+- STRICT FORBIDDEN: Wipe any existence of the word "Athena" or its logos. Do not generate it.
+- STRICT FORBIDDEN: No Facebook icons/links. Use TikTok/Insta/WhatsApp only.
+- STRICT FORBIDDEN: Do not use "Gmunden". Ensure all geographic references are to Iraqi Governorates (Default: Basrah).
+
+Test the flow from Cosmetic Registration -> Adding a Product -> Patient placing an order -> Vendor Accepting -> Patient Marking as Received.

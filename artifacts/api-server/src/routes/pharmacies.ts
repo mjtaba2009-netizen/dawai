@@ -2,8 +2,30 @@ import { Router, type IRouter } from "express";
 import { db, pharmaciesTable, pharmacyMedicationsTable, medicationsTable, usersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
+import { isVendorRole, isCategoryAllowed, type VendorType } from "../lib/vendor";
 
 const router: IRouter = Router();
+
+// تحويل سجل البائع إلى الشكل العام (يشمل النوع والمحافظة وروابط التواصل)
+function serializeVendor(p: typeof pharmaciesTable.$inferSelect) {
+  return {
+    id: p.id,
+    name: p.name,
+    type: (p.type ?? "pharmacy") as VendorType,
+    governorate: p.governorate ?? "البصرة",
+    address: p.address,
+    distance: p.distance,
+    isOpen: p.isOpen,
+    phone: p.phone,
+    whatsapp: p.whatsapp ?? null,
+    instagram: p.instagram ?? null,
+    tiktok: p.tiktok ?? null,
+    rating: p.rating ?? null,
+    lat: p.lat ?? null,
+    lng: p.lng ?? null,
+    imageUrl: p.imageUrl ?? null,
+  };
+}
 
 // -------- Auth helper --------
 async function getAuthUser(req: Parameters<typeof router.get>[1] extends (req: infer R, ...a: never[]) => unknown ? R : never) {
@@ -29,23 +51,9 @@ router.get("/pharmacies/nearby", async (_req, res): Promise<void> => {
     .select()
     .from(pharmaciesTable)
     .orderBy(pharmaciesTable.distance)
-    .limit(20);
+    .limit(50);
 
-  res.json(
-    pharmacies.map((p) => ({
-      id: p.id,
-      name: p.name,
-      address: p.address,
-      distance: p.distance,
-      isOpen: p.isOpen,
-      phone: p.phone,
-      whatsapp: p.whatsapp ?? null,
-      rating: p.rating ?? null,
-      lat: p.lat ?? null,
-      lng: p.lng ?? null,
-      imageUrl: p.imageUrl ?? null,
-    }))
-  );
+  res.json(pharmacies.map(serializeVendor));
 });
 
 // تفاصيل صيدلية
@@ -55,14 +63,9 @@ router.get("/pharmacies/:id", async (req, res): Promise<void> => {
 
   const [pharmacy] = await db.select().from(pharmaciesTable).where(eq(pharmaciesTable.id, id));
 
-  if (!pharmacy) { res.status(404).json({ error: "الصيدلية غير موجودة" }); return; }
+  if (!pharmacy) { res.status(404).json({ error: "البائع غير موجود" }); return; }
 
-  res.json({
-    id: pharmacy.id, name: pharmacy.name, address: pharmacy.address,
-    distance: pharmacy.distance, isOpen: pharmacy.isOpen, phone: pharmacy.phone,
-    whatsapp: pharmacy.whatsapp ?? null, rating: pharmacy.rating ?? null,
-    lat: pharmacy.lat ?? null, lng: pharmacy.lng ?? null, imageUrl: pharmacy.imageUrl ?? null,
-  });
+  res.json(serializeVendor(pharmacy));
 });
 
 // أدوية صيدلية معينة
@@ -119,7 +122,7 @@ const UpdateInventoryBody = z.object({
 // POST /pharmacy/inventory/add-custom — إضافة دواء جديد بإدخال نصي حر
 router.post("/pharmacy/inventory/add-custom", async (req, res): Promise<void> => {
   const user = await getAuthUser(req as Parameters<typeof getAuthUser>[0]);
-  if (!user || user.role !== "pharmacy" || !user.pharmacyId) {
+  if (!user || !isVendorRole(user.role) || !user.pharmacyId) {
     res.status(403).json({ error: "غير مصرح" }); return;
   }
 
@@ -127,6 +130,14 @@ router.post("/pharmacy/inventory/add-custom", async (req, res): Promise<void> =>
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
   const { medicationName, price, quantity, requiresPrescription, category, imageUrl } = parsed.data;
+
+  // نتحقق أن الفئة مسموح بها لنوع البائع (صيدلية مقابل كوزماتك)
+  const [vendor] = await db.select().from(pharmaciesTable).where(eq(pharmaciesTable.id, user.pharmacyId!));
+  const vendorType = (vendor?.type ?? "pharmacy") as VendorType;
+  if (!isCategoryAllowed(vendorType, category)) {
+    res.status(400).json({ error: "الفئة غير مسموح بها لنوع نشاطك" });
+    return;
+  }
 
   // البحث عن دواء بنفس الاسم أولاً (case-insensitive)
   const { ilike } = await import("drizzle-orm");
@@ -166,7 +177,7 @@ router.post("/pharmacy/inventory/add-custom", async (req, res): Promise<void> =>
 // GET /pharmacy/inventory — قائمة مخزون الصيدلية
 router.get("/pharmacy/inventory", async (req, res): Promise<void> => {
   const user = await getAuthUser(req as Parameters<typeof getAuthUser>[0]);
-  if (!user || user.role !== "pharmacy" || !user.pharmacyId) {
+  if (!user || !isVendorRole(user.role) || !user.pharmacyId) {
     res.status(403).json({ error: "غير مصرح" }); return;
   }
 
@@ -190,7 +201,7 @@ router.get("/pharmacy/inventory", async (req, res): Promise<void> => {
 // POST /pharmacy/inventory — إضافة دواء للمخزون
 router.post("/pharmacy/inventory", async (req, res): Promise<void> => {
   const user = await getAuthUser(req as Parameters<typeof getAuthUser>[0]);
-  if (!user || user.role !== "pharmacy" || !user.pharmacyId) {
+  if (!user || !isVendorRole(user.role) || !user.pharmacyId) {
     res.status(403).json({ error: "غير مصرح" }); return;
   }
 
@@ -223,7 +234,7 @@ router.post("/pharmacy/inventory", async (req, res): Promise<void> => {
 // PUT /pharmacy/inventory/:id — تعديل سعر أو كمية دواء
 router.put("/pharmacy/inventory/:id", async (req, res): Promise<void> => {
   const user = await getAuthUser(req as Parameters<typeof getAuthUser>[0]);
-  if (!user || user.role !== "pharmacy" || !user.pharmacyId) {
+  if (!user || !isVendorRole(user.role) || !user.pharmacyId) {
     res.status(403).json({ error: "غير مصرح" }); return;
   }
 
@@ -258,7 +269,7 @@ router.put("/pharmacy/inventory/:id", async (req, res): Promise<void> => {
 // DELETE /pharmacy/inventory/:id — حذف دواء من المخزون
 router.delete("/pharmacy/inventory/:id", async (req, res): Promise<void> => {
   const user = await getAuthUser(req as Parameters<typeof getAuthUser>[0]);
-  if (!user || user.role !== "pharmacy" || !user.pharmacyId) {
+  if (!user || !isVendorRole(user.role) || !user.pharmacyId) {
     res.status(403).json({ error: "غير مصرح" }); return;
   }
 
@@ -282,7 +293,7 @@ router.delete("/pharmacy/inventory/:id", async (req, res): Promise<void> => {
 // تفعيل حساب الصيدلية بعد التوقيع الرقمي على اتفاقية الانضمام
 router.post("/pharmacy/activate", async (req, res): Promise<void> => {
   const user = await getAuthUser(req as Parameters<typeof getAuthUser>[0]);
-  if (!user || user.role !== "pharmacy") {
+  if (!user || !isVendorRole(user.role)) {
     res.status(403).json({ error: "غير مصرح" });
     return;
   }
@@ -300,7 +311,7 @@ router.post("/pharmacy/activate", async (req, res): Promise<void> => {
       name: updated.name,
       phone: updated.phone,
       avatar: updated.avatar ?? null,
-      role: updated.role as "patient" | "pharmacy",
+      role: updated.role as "patient" | "pharmacy" | "cosmetic",
       status: (updated.status ?? "active") as "active" | "approved_pending_signature",
       pharmacyId: updated.pharmacyId ?? null,
     },

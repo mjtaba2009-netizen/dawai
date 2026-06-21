@@ -1,13 +1,14 @@
 import { useState, useEffect, useCallback } from 'react';
 import { API_PREFIX } from '@/lib/api-base';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Clock, ShieldCheck, ChevronLeft, CheckCircle2, Inbox } from 'lucide-react';
+import { Clock, ShieldCheck, ChevronLeft, CheckCircle2, XCircle, Inbox } from 'lucide-react';
 
 const BASE = API_PREFIX;
 
 interface KanbanOrder {
   id: number;
   status: string;
+  trackingCode: string | null;
   quantity: number;
   totalPrice: number;
   createdAt: string;
@@ -87,10 +88,14 @@ export function OrdersBoard({ token }: { token: string }) {
     return () => clearInterval(t);
   }, [fetchOrders]);
 
-  const advance = async (id: number, status: 'confirmed' | 'ready') => {
+  const advance = async (id: number, status: 'confirmed' | 'ready' | 'rejected') => {
     setUpdatingId(id);
-    // تحديث تفاؤلي
-    setOrders((prev) => prev.map((o) => (o.id === id ? { ...o, status } : o)));
+    // تحديث تفاؤلي — المرفوضة تختفي من الأعمدة الثلاثة
+    setOrders((prev) =>
+      status === 'rejected'
+        ? prev.filter((o) => o.id !== id)
+        : prev.map((o) => (o.id === id ? { ...o, status } : o)),
+    );
     try {
       const res = await fetch(`${BASE}/api/pharmacy/orders/${id}/status`, {
         method: 'PUT',
@@ -171,6 +176,16 @@ export function OrdersBoard({ token }: { token: string }) {
                       </div>
                       <p className="text-slate-400 text-xs truncate">{o.medication.genericName}</p>
 
+                      {/* رمز التتبّع — مشترك بين البائع والمريض */}
+                      {o.trackingCode && (
+                        <span
+                          className="inline-block mt-1.5 text-[11px] font-bold tracking-wide px-2 py-0.5 rounded-lg bg-emerald-50 text-emerald-700 font-mono"
+                          data-testid={`text-tracking-${o.id}`}
+                        >
+                          {o.trackingCode}
+                        </span>
+                      )}
+
                       <div className="flex items-center gap-2 mt-2 flex-wrap">
                         <span className="text-emerald-700 font-bold text-sm">{o.totalPrice.toFixed(2)} IQD</span>
                         <span className="text-slate-300">•</span>
@@ -184,7 +199,31 @@ export function OrdersBoard({ token }: { token: string }) {
                       </div>
 
                       {/* إجراء التقدّم */}
-                      {col.next ? (
+                      {col.key === 'pending' ? (
+                        /* الطلبات الجديدة → قبول (أخضر) أو رفض (أحمر) */
+                        <div className="mt-3 flex gap-2">
+                          <motion.button
+                            whileTap={{ scale: 0.97 }}
+                            onClick={() => advance(o.id, 'confirmed')}
+                            disabled={updatingId === o.id}
+                            className="flex-1 h-9 rounded-xl text-white font-bold text-xs flex items-center justify-center gap-1 disabled:opacity-60 bg-emerald-500 shadow-[0_3px_10px_rgba(16,185,129,0.35)]"
+                            data-testid={`button-accept-${o.id}`}
+                          >
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            قبول
+                          </motion.button>
+                          <motion.button
+                            whileTap={{ scale: 0.97 }}
+                            onClick={() => advance(o.id, 'rejected')}
+                            disabled={updatingId === o.id}
+                            className="flex-1 h-9 rounded-xl text-white font-bold text-xs flex items-center justify-center gap-1 disabled:opacity-60 bg-red-500 shadow-[0_3px_10px_rgba(239,68,68,0.35)]"
+                            data-testid={`button-reject-${o.id}`}
+                          >
+                            <XCircle className="w-3.5 h-3.5" />
+                            رفض
+                          </motion.button>
+                        </div>
+                      ) : col.next ? (
                         <motion.button
                           whileTap={{ scale: 0.97 }}
                           onClick={() => advance(o.id, col.next!.status)}

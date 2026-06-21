@@ -14,11 +14,47 @@ export interface LoginInput {
   password: string;
 }
 
+export type RegisterInputRole = typeof RegisterInputRole[keyof typeof RegisterInputRole];
+
+
+export const RegisterInputRole = {
+  patient: 'patient',
+  pharmacy: 'pharmacy',
+  cosmetic: 'cosmetic',
+} as const;
+
 export interface RegisterInput {
   name: string;
   phone: string;
   password: string;
+  role?: RegisterInputRole;
+  /** Display name of the pharmacy/cosmetic store (vendor) */
+  vendorName?: string;
+  address?: string;
+  governorate?: string;
+  workingHours?: string;
+  /** Instagram profile URL (required for cosmetic vendors) */
+  instagram?: string;
+  /** TikTok profile URL */
+  tiktok?: string;
 }
+
+export type UserRole = typeof UserRole[keyof typeof UserRole];
+
+
+export const UserRole = {
+  patient: 'patient',
+  pharmacy: 'pharmacy',
+  cosmetic: 'cosmetic',
+} as const;
+
+export type UserStatus = typeof UserStatus[keyof typeof UserStatus];
+
+
+export const UserStatus = {
+  active: 'active',
+  approved_pending_signature: 'approved_pending_signature',
+} as const;
 
 export interface User {
   id: number;
@@ -26,6 +62,10 @@ export interface User {
   phone: string;
   /** @nullable */
   avatar?: string | null;
+  role?: UserRole;
+  status?: UserStatus;
+  /** @nullable */
+  pharmacyId?: number | null;
 }
 
 export interface AuthResponse {
@@ -74,9 +114,23 @@ export interface CatalogItem {
   quantity: number;
 }
 
+/**
+ * Vendor type
+ */
+export type PharmacyType = typeof PharmacyType[keyof typeof PharmacyType];
+
+
+export const PharmacyType = {
+  pharmacy: 'pharmacy',
+  cosmetic: 'cosmetic',
+} as const;
+
 export interface Pharmacy {
   id: number;
   name: string;
+  /** Vendor type */
+  type: PharmacyType;
+  governorate: string;
   address: string;
   /** Distance in km */
   distance: number;
@@ -84,6 +138,10 @@ export interface Pharmacy {
   phone: string;
   /** @nullable */
   whatsapp?: string | null;
+  /** @nullable */
+  instagram?: string | null;
+  /** @nullable */
+  tiktok?: string | null;
   /** @nullable */
   rating?: number | null;
   /** @nullable */
@@ -120,11 +178,18 @@ export const OrderStatus = {
   ready: 'ready',
   completed: 'completed',
   cancelled: 'cancelled',
+  delivered: 'delivered',
+  rejected: 'rejected',
 } as const;
 
 export interface Order {
   id: number;
   status: OrderStatus;
+  /**
+     * Per-order tracking code shown to patient and vendor (e.g.
+     * @nullable
+     */
+  trackingCode?: string | null;
   createdAt: string;
   medication: Medication;
   pharmacy: Pharmacy;

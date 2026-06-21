@@ -30,7 +30,10 @@ export const LoginResponse = zod.object({
   "id": zod.number(),
   "name": zod.string(),
   "phone": zod.string(),
-  "avatar": zod.string().nullish()
+  "avatar": zod.string().nullish(),
+  "role": zod.enum(['patient', 'pharmacy', 'cosmetic']).optional(),
+  "status": zod.enum(['active', 'approved_pending_signature']).optional(),
+  "pharmacyId": zod.number().nullish()
 })
 })
 
@@ -38,10 +41,19 @@ export const LoginResponse = zod.object({
 /**
  * @summary Register new user
  */
+export const registerBodyRoleDefault = `patient`;
+
 export const RegisterBody = zod.object({
   "name": zod.string(),
   "phone": zod.string(),
-  "password": zod.string()
+  "password": zod.string(),
+  "role": zod.enum(['patient', 'pharmacy', 'cosmetic']).default(registerBodyRoleDefault),
+  "vendorName": zod.string().optional().describe('Display name of the pharmacy\/cosmetic store (vendor)'),
+  "address": zod.string().optional(),
+  "governorate": zod.string().optional(),
+  "workingHours": zod.string().optional(),
+  "instagram": zod.string().optional().describe('Instagram profile URL (required for cosmetic vendors)'),
+  "tiktok": zod.string().optional().describe('TikTok profile URL')
 })
 
 
@@ -71,11 +83,15 @@ export const SearchMedicationsResponse = zod.object({
   "pharmacy": zod.object({
   "id": zod.number(),
   "name": zod.string(),
+  "type": zod.enum(['pharmacy', 'cosmetic']).describe('Vendor type'),
+  "governorate": zod.string(),
   "address": zod.string(),
   "distance": zod.number().describe('Distance in km'),
   "isOpen": zod.boolean(),
   "phone": zod.string(),
   "whatsapp": zod.string().nullish(),
+  "instagram": zod.string().nullish(),
+  "tiktok": zod.string().nullish(),
   "rating": zod.number().nullish(),
   "lat": zod.number().nullish(),
   "lng": zod.number().nullish(),
@@ -153,11 +169,15 @@ export const GetNearbyPharmaciesQueryParams = zod.object({
 export const GetNearbyPharmaciesResponseItem = zod.object({
   "id": zod.number(),
   "name": zod.string(),
+  "type": zod.enum(['pharmacy', 'cosmetic']).describe('Vendor type'),
+  "governorate": zod.string(),
   "address": zod.string(),
   "distance": zod.number().describe('Distance in km'),
   "isOpen": zod.boolean(),
   "phone": zod.string(),
   "whatsapp": zod.string().nullish(),
+  "instagram": zod.string().nullish(),
+  "tiktok": zod.string().nullish(),
   "rating": zod.number().nullish(),
   "lat": zod.number().nullish(),
   "lng": zod.number().nullish(),
@@ -176,11 +196,15 @@ export const GetPharmacyParams = zod.object({
 export const GetPharmacyResponse = zod.object({
   "id": zod.number(),
   "name": zod.string(),
+  "type": zod.enum(['pharmacy', 'cosmetic']).describe('Vendor type'),
+  "governorate": zod.string(),
   "address": zod.string(),
   "distance": zod.number().describe('Distance in km'),
   "isOpen": zod.boolean(),
   "phone": zod.string(),
   "whatsapp": zod.string().nullish(),
+  "instagram": zod.string().nullish(),
+  "tiktok": zod.string().nullish(),
   "rating": zod.number().nullish(),
   "lat": zod.number().nullish(),
   "lng": zod.number().nullish(),
@@ -219,7 +243,8 @@ export const GetPharmacyMedicationsResponse = zod.array(GetPharmacyMedicationsRe
  */
 export const GetOrdersResponseItem = zod.object({
   "id": zod.number(),
-  "status": zod.enum(['pending', 'confirmed', 'ready', 'completed', 'cancelled']),
+  "status": zod.enum(['pending', 'confirmed', 'ready', 'completed', 'cancelled', 'delivered', 'rejected']),
+  "trackingCode": zod.string().nullish().describe('Per-order tracking code shown to patient and vendor (e.g.'),
   "createdAt": zod.string(),
   "medication": zod.object({
   "id": zod.number(),
@@ -233,11 +258,15 @@ export const GetOrdersResponseItem = zod.object({
   "pharmacy": zod.object({
   "id": zod.number(),
   "name": zod.string(),
+  "type": zod.enum(['pharmacy', 'cosmetic']).describe('Vendor type'),
+  "governorate": zod.string(),
   "address": zod.string(),
   "distance": zod.number().describe('Distance in km'),
   "isOpen": zod.boolean(),
   "phone": zod.string(),
   "whatsapp": zod.string().nullish(),
+  "instagram": zod.string().nullish(),
+  "tiktok": zod.string().nullish(),
   "rating": zod.number().nullish(),
   "lat": zod.number().nullish(),
   "lng": zod.number().nullish(),
@@ -268,7 +297,8 @@ export const GetOrderParams = zod.object({
 
 export const GetOrderResponse = zod.object({
   "id": zod.number(),
-  "status": zod.enum(['pending', 'confirmed', 'ready', 'completed', 'cancelled']),
+  "status": zod.enum(['pending', 'confirmed', 'ready', 'completed', 'cancelled', 'delivered', 'rejected']),
+  "trackingCode": zod.string().nullish().describe('Per-order tracking code shown to patient and vendor (e.g.'),
   "createdAt": zod.string(),
   "medication": zod.object({
   "id": zod.number(),
@@ -282,11 +312,15 @@ export const GetOrderResponse = zod.object({
   "pharmacy": zod.object({
   "id": zod.number(),
   "name": zod.string(),
+  "type": zod.enum(['pharmacy', 'cosmetic']).describe('Vendor type'),
+  "governorate": zod.string(),
   "address": zod.string(),
   "distance": zod.number().describe('Distance in km'),
   "isOpen": zod.boolean(),
   "phone": zod.string(),
   "whatsapp": zod.string().nullish(),
+  "instagram": zod.string().nullish(),
+  "tiktok": zod.string().nullish(),
   "rating": zod.number().nullish(),
   "lat": zod.number().nullish(),
   "lng": zod.number().nullish(),

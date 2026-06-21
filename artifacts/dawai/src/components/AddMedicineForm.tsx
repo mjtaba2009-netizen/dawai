@@ -1,17 +1,13 @@
 import { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Pill, DollarSign, Hash, ShieldCheck, Tag, ImagePlus, Trash2 } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
 
-// فئات الأدوية المتاحة
-const CATEGORIES = [
-  'مسكنات',
-  'مضادات حيوية',
-  'فيتامينات',
-  'أمراض مزمنة',
-  'العناية والتجميل',
-  'الأم والطفل',
-  'أخرى',
-] as const;
+// الفئات المتاحة حسب نوع البائع — يجب أن تطابق VENDOR_CATEGORIES على الخادم
+const CATEGORIES_BY_ROLE: Record<'pharmacy' | 'cosmetic', readonly string[]> = {
+  pharmacy: ['مسكنات', 'مضادات حيوية', 'فيتامينات', 'أمراض مزمنة', 'أجهزة طبية'],
+  cosmetic: ['فيتامينات', 'سكن كير', 'مكياج'],
+};
 
 // أنواع الصور المسموحة (بدون SVG لأسباب أمنية) + الحد الأقصى للحجم
 const ALLOWED_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/gif'];
@@ -61,11 +57,16 @@ function ToggleSwitch({
 }
 
 export function AddMedicineForm({ onAdd, onClose }: AddMedicineFormProps) {
+  const { user } = useAuth();
+  const isCosmetic = user?.role === 'cosmetic';
+  const categories = CATEGORIES_BY_ROLE[isCosmetic ? 'cosmetic' : 'pharmacy'];
+  const itemLabel = isCosmetic ? 'المنتج' : 'الدواء';
+
   const [medicationName, setMedicationName] = useState('');
   const [price, setPrice] = useState('');
   const [quantity, setQuantity] = useState('');
   const [requiresPrescription, setRequiresPrescription] = useState(false);
-  const [category, setCategory] = useState<string>('أخرى');
+  const [category, setCategory] = useState<string>(categories[0]);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [imageError, setImageError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -154,8 +155,8 @@ export function AddMedicineForm({ onAdd, onClose }: AddMedicineFormProps) {
               <Pill className="w-5 h-5 text-emerald-400" />
             </div>
           </div>
-          <h2 className="text-white font-bold text-lg">إضافة دواء جديد</h2>
-          <p className="text-slate-400 text-sm mt-0.5">أدخل بيانات الدواء يدوياً لإضافته للمخزون</p>
+          <h2 className="text-white font-bold text-lg">{isCosmetic ? 'إضافة منتج جديد' : 'إضافة دواء جديد'}</h2>
+          <p className="text-slate-400 text-sm mt-0.5">أدخل بيانات {itemLabel} يدوياً لإضافته للمخزون</p>
         </div>
 
         {/* النموذج */}
@@ -165,14 +166,14 @@ export function AddMedicineForm({ onAdd, onClose }: AddMedicineFormProps) {
           <div className="space-y-1.5">
             <label className="flex items-center gap-1.5 text-sm font-semibold text-slate-700">
               <Pill className="w-3.5 h-3.5 text-slate-400" />
-              اسم الدواء <span className="text-red-400">*</span>
+              اسم {itemLabel} <span className="text-red-400">*</span>
             </label>
             <input
               type="text"
               value={medicationName}
               onChange={(e) => setMedicationName(e.target.value)}
               required
-              placeholder="مثال: باراسيتامول 500mg"
+              placeholder={isCosmetic ? 'مثال: كريم مرطب للوجه' : 'مثال: باراسيتامول 500mg'}
               className={inputClass}
               data-testid="input-medication-name"
             />
@@ -190,7 +191,7 @@ export function AddMedicineForm({ onAdd, onClose }: AddMedicineFormProps) {
               className={`${inputClass} appearance-none cursor-pointer`}
               data-testid="select-category"
             >
-              {CATEGORIES.map((c) => (
+              {categories.map((c) => (
                 <option key={c} value={c}>{c}</option>
               ))}
             </select>
@@ -240,7 +241,7 @@ export function AddMedicineForm({ onAdd, onClose }: AddMedicineFormProps) {
           <div className="space-y-1.5">
             <label className="flex items-center gap-1.5 text-sm font-semibold text-slate-700">
               <ImagePlus className="w-3.5 h-3.5 text-slate-400" />
-              صورة الدواء <span className="text-slate-400 font-normal">(اختياري)</span>
+              صورة {itemLabel} <span className="text-slate-400 font-normal">(اختياري)</span>
             </label>
 
             {imageUrl ? (
@@ -275,7 +276,7 @@ export function AddMedicineForm({ onAdd, onClose }: AddMedicineFormProps) {
                 data-testid="button-upload-medicine-image"
               >
                 <ImagePlus className="w-6 h-6" />
-                <span className="text-xs font-semibold">رفع صورة للدواء</span>
+                <span className="text-xs font-semibold">رفع صورة {isCosmetic ? 'للمنتج' : 'للدواء'}</span>
                 <span className="text-[10px] text-slate-400">PNG · JPG · WEBP · GIF — حتى 1.5MB</span>
               </motion.button>
             )}
@@ -303,31 +304,33 @@ export function AddMedicineForm({ onAdd, onClose }: AddMedicineFormProps) {
             </AnimatePresence>
           </div>
 
-          {/* تبديل وصفة طبية */}
-          <motion.div
-            whileTap={{ scale: 0.98 }}
-            transition={{ type: 'spring', damping: 20, stiffness: 400 }}
-            className="flex items-center justify-between p-4 rounded-2xl
-              bg-white/50 backdrop-blur-md
-              border border-white/60
-              shadow-[0_2px_8px_rgb(0,0,0,0.04)]"
-          >
-            <div className="flex items-center gap-2.5">
-              <div className={`w-9 h-9 rounded-xl flex items-center justify-center transition-colors ${requiresPrescription ? 'bg-emerald-100/80' : 'bg-slate-100/80'}`}>
-                <ShieldCheck
-                  className={`transition-colors ${requiresPrescription ? 'text-emerald-600' : 'text-slate-400'}`}
-                  style={{ width: '18px', height: '18px' }}
-                />
+          {/* تبديل وصفة طبية — للصيدليات فقط */}
+          {!isCosmetic && (
+            <motion.div
+              whileTap={{ scale: 0.98 }}
+              transition={{ type: 'spring', damping: 20, stiffness: 400 }}
+              className="flex items-center justify-between p-4 rounded-2xl
+                bg-white/50 backdrop-blur-md
+                border border-white/60
+                shadow-[0_2px_8px_rgb(0,0,0,0.04)]"
+            >
+              <div className="flex items-center gap-2.5">
+                <div className={`w-9 h-9 rounded-xl flex items-center justify-center transition-colors ${requiresPrescription ? 'bg-emerald-100/80' : 'bg-slate-100/80'}`}>
+                  <ShieldCheck
+                    className={`transition-colors ${requiresPrescription ? 'text-emerald-600' : 'text-slate-400'}`}
+                    style={{ width: '18px', height: '18px' }}
+                  />
+                </div>
+                <div>
+                  <p className="text-slate-800 font-semibold text-sm">يحتاج وصفة طبية</p>
+                  <p className="text-slate-400 text-xs mt-0.5">
+                    {requiresPrescription ? 'نعم، يستلزم وصفة' : 'لا، يُصرف بحرية'}
+                  </p>
+                </div>
               </div>
-              <div>
-                <p className="text-slate-800 font-semibold text-sm">يحتاج وصفة طبية</p>
-                <p className="text-slate-400 text-xs mt-0.5">
-                  {requiresPrescription ? 'نعم، يستلزم وصفة' : 'لا، يُصرف بحرية'}
-                </p>
-              </div>
-            </div>
-            <ToggleSwitch checked={requiresPrescription} onChange={setRequiresPrescription} />
-          </motion.div>
+              <ToggleSwitch checked={requiresPrescription} onChange={setRequiresPrescription} />
+            </motion.div>
+          )}
 
           {/* الأزرار */}
           <div className="flex gap-3 pt-1 pb-safe">
@@ -372,7 +375,7 @@ export function AddMedicineForm({ onAdd, onClose }: AddMedicineFormProps) {
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
                   >
-                    إضافة الدواء
+                    {isCosmetic ? 'إضافة المنتج' : 'إضافة الدواء'}
                   </motion.span>
                 )}
               </AnimatePresence>

@@ -428,7 +428,13 @@ interface PharmacyRegistrationFormProps {
   onPhoneChange?: (v: string) => void;
   onPasswordChange?: (v: string) => void;
   /** يُستدعى عند الإرسال في وضع التضمين مع بيانات العرض */
-  onRegister?: (data: { fullName: string; pharmacyName: string }) => void;
+  onRegister?: (data: {
+    fullName: string;
+    pharmacyName: string;
+    governorate: string;
+    address: string;
+    workingHours: string;
+  }) => void;
   isLoading?: boolean;
 }
 
@@ -479,7 +485,13 @@ export function PharmacyRegistrationForm({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (embedded) {
-      onRegister?.({ fullName: form.fullName, pharmacyName: form.pharmacyName });
+      onRegister?.({
+        fullName: form.fullName,
+        pharmacyName: form.pharmacyName,
+        governorate: form.governorate,
+        address: form.address,
+        workingHours: form.workingHours,
+      });
       return;
     }
     setSubmitted(true);

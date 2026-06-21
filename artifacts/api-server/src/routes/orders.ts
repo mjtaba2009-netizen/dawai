@@ -3,19 +3,63 @@ import { db, ordersTable, medicationsTable, pharmaciesTable, pharmacyMedications
 import { eq, and, desc } from "drizzle-orm";
 import { CreateOrderBody, GetOrderParams } from "@workspace/api-zod";
 import { z } from "zod";
+import { isVendorRole, type VendorType } from "../lib/vendor";
 
-// دالة مساعدة لإيجاد مستخدم الصيدلية
-async function getPharmacyUser(req: { headers: { authorization?: string } }) {
+// فك التوكن للحصول على معرف المستخدم (أي دور)
+function decodeUserId(req: { headers: { authorization?: string } }): number | null {
   const auth = req.headers.authorization;
   if (!auth?.startsWith("Bearer ")) return null;
   try {
     const decoded = Buffer.from(auth.slice(7), "base64").toString("utf-8");
     const [idStr] = decoded.split(":");
     const id = parseInt(idStr, 10);
-    if (isNaN(id)) return null;
-    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, id));
-    return user?.role === "pharmacy" && user.pharmacyId ? user : null;
+    return isNaN(id) ? null : id;
   } catch { return null; }
+}
+
+// دالة مساعدة لإيجاد مستخدم البائع (صيدلية أو كوزماتك)
+async function getVendorUser(req: { headers: { authorization?: string } }) {
+  const id = decodeUserId(req);
+  if (id == null) return null;
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, id));
+  return user && isVendorRole(user.role) && user.pharmacyId ? user : null;
+}
+
+// تحويل سجل البائع المضمّن داخل الطلب
+function serializeOrderVendor(p: typeof pharmaciesTable.$inferSelect) {
+  return {
+    id: p.id,
+    name: p.name,
+    type: (p.type ?? "pharmacy") as VendorType,
+    governorate: p.governorate ?? "البصرة",
+    address: p.address,
+    distance: p.distance,
+    isOpen: p.isOpen,
+    phone: p.phone,
+    whatsapp: p.whatsapp ?? null,
+    instagram: p.instagram ?? null,
+    tiktok: p.tiktok ?? null,
+    rating: p.rating ?? null,
+    lat: p.lat ?? null,
+    lng: p.lng ?? null,
+    imageUrl: p.imageUrl ?? null,
+  };
+}
+
+// توليد رمز تتبّع فريد بالشكل #DW-XXXX مع حلقة لتفادي التكرار
+async function generateTrackingCode(): Promise<string> {
+  for (let attempt = 0; attempt < 10; attempt++) {
+    const suffix = Math.random().toString(36).slice(2, 6).toUpperCase();
+    const code = `#DW-${suffix}`;
+    const [clash] = await db
+      .select({ id: ordersTable.id })
+      .from(ordersTable)
+      .where(eq(ordersTable.trackingCode, code))
+      .limit(1);
+    if (!clash) return code;
+  }
+  // احتياطي شبه مؤكد التفرّد
+  return `#DW-${Date.now().toString(36).slice(-5).toUpperCase()}`;
 }
 
 const router: IRouter = Router();
@@ -38,6 +82,7 @@ async function getOrderWithDetails(orderId: number) {
   return {
     id: row.order.id,
     status: row.order.status,
+    trackingCode: row.order.trackingCode ?? null,
     createdAt: row.order.createdAt.toISOString(),
     quantity: row.order.quantity,
     totalPrice: row.order.totalPrice,
@@ -50,19 +95,7 @@ async function getOrderWithDetails(orderId: number) {
       requiresPrescription: row.medication.requiresPrescription,
       imageUrl: row.medication.imageUrl ?? null,
     },
-    pharmacy: {
-      id: row.pharmacy.id,
-      name: row.pharmacy.name,
-      address: row.pharmacy.address,
-      distance: row.pharmacy.distance,
-      isOpen: row.pharmacy.isOpen,
-      phone: row.pharmacy.phone,
-      whatsapp: row.pharmacy.whatsapp ?? null,
-      rating: row.pharmacy.rating ?? null,
-      lat: row.pharmacy.lat ?? null,
-      lng: row.pharmacy.lng ?? null,
-      imageUrl: row.pharmacy.imageUrl ?? null,
-    },
+    pharmacy: serializeOrderVendor(row.pharmacy),
   };
 }
 
@@ -84,6 +117,7 @@ router.get("/orders", async (_req, res): Promise<void> => {
     orders.map((row) => ({
       id: row.order.id,
       status: row.order.status,
+      trackingCode: row.order.trackingCode ?? null,
       createdAt: row.order.createdAt.toISOString(),
       quantity: row.order.quantity,
       totalPrice: row.order.totalPrice,
@@ -96,19 +130,7 @@ router.get("/orders", async (_req, res): Promise<void> => {
         requiresPrescription: row.medication.requiresPrescription,
         imageUrl: row.medication.imageUrl ?? null,
       },
-      pharmacy: {
-        id: row.pharmacy.id,
-        name: row.pharmacy.name,
-        address: row.pharmacy.address,
-        distance: row.pharmacy.distance,
-        isOpen: row.pharmacy.isOpen,
-        phone: row.pharmacy.phone,
-        whatsapp: row.pharmacy.whatsapp ?? null,
-        rating: row.pharmacy.rating ?? null,
-        lat: row.pharmacy.lat ?? null,
-        lng: row.pharmacy.lng ?? null,
-        imageUrl: row.pharmacy.imageUrl ?? null,
-      },
+      pharmacy: serializeOrderVendor(row.pharmacy),
     }))
   );
 });
@@ -138,6 +160,7 @@ router.post("/orders", async (req, res): Promise<void> => {
   }
 
   const totalPrice = inventory.price * parsed.data.quantity;
+  const trackingCode = await generateTrackingCode();
 
   const [order] = await db
     .insert(ordersTable)
@@ -147,6 +170,7 @@ router.post("/orders", async (req, res): Promise<void> => {
       medicationId: parsed.data.medicationId,
       quantity: parsed.data.quantity,
       totalPrice,
+      trackingCode,
       status: "pending",
     })
     .returning();
@@ -158,7 +182,7 @@ router.post("/orders", async (req, res): Promise<void> => {
 
 // GET /pharmacy/orders — طلبات واردة للصيدلية
 router.get("/pharmacy/orders", async (req, res): Promise<void> => {
-  const user = await getPharmacyUser(req as any);
+  const user = await getVendorUser(req as any);
   if (!user) { res.status(403).json({ error: "غير مصرح" }); return; }
 
   const rows = await db
@@ -171,6 +195,7 @@ router.get("/pharmacy/orders", async (req, res): Promise<void> => {
   res.json(rows.map((r) => ({
     id: r.order.id,
     status: r.order.status,
+    trackingCode: r.order.trackingCode ?? null,
     quantity: r.order.quantity,
     totalPrice: r.order.totalPrice,
     createdAt: r.order.createdAt.toISOString(),
@@ -186,7 +211,7 @@ router.get("/pharmacy/orders", async (req, res): Promise<void> => {
 
 // PUT /pharmacy/orders/:id/status — تحديث حالة الطلب
 router.put("/pharmacy/orders/:id/status", async (req, res): Promise<void> => {
-  const user = await getPharmacyUser(req as any);
+  const user = await getVendorUser(req as any);
   if (!user) { res.status(403).json({ error: "غير مصرح" }); return; }
 
   const id = parseInt(req.params.id, 10);
@@ -209,6 +234,30 @@ router.put("/pharmacy/orders/:id/status", async (req, res): Promise<void> => {
   const [updated] = await db
     .update(ordersTable)
     .set({ status, updatedAt: new Date() })
+    .where(eq(ordersTable.id, id))
+    .returning();
+
+  res.json({ id: updated.id, status: updated.status });
+});
+
+// PUT /orders/:id/received — تأكيد المريض استلام الطلب (يصبح delivered)
+router.put("/orders/:id/received", async (req, res): Promise<void> => {
+  const userId = decodeUserId(req as any);
+  if (userId == null) { res.status(403).json({ error: "غير مصرح" }); return; }
+
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) { res.status(400).json({ error: "معرف غير صالح" }); return; }
+
+  const [existing] = await db
+    .select()
+    .from(ordersTable)
+    .where(and(eq(ordersTable.id, id), eq(ordersTable.userId, userId)));
+
+  if (!existing) { res.status(404).json({ error: "الطلب غير موجود" }); return; }
+
+  const [updated] = await db
+    .update(ordersTable)
+    .set({ status: "delivered", updatedAt: new Date() })
     .where(eq(ordersTable.id, id))
     .returning();
 

@@ -14,6 +14,10 @@ export const pharmaciesTable = pgTable("pharmacies", {
   lat: real("lat"),
   lng: real("lng"),
   imageUrl: text("image_url"),
+  type: text("type").notNull().default("pharmacy"),
+  governorate: text("governorate").notNull().default("البصرة"),
+  instagram: text("instagram"),
+  tiktok: text("tiktok"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

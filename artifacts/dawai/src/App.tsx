@@ -4,7 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AnimatePresence } from 'framer-motion';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
-import { AuthContext, AuthProvider } from '@/contexts/AuthContext';
+import { AuthContext, AuthProvider, isVendor } from '@/contexts/AuthContext';
 import { CartProvider } from '@/contexts/CartContext';
 import { OrderAutomationProvider } from '@/contexts/OrderAutomationContext';
 import { OrderAutomationManager } from '@/components/OrderAutomationManager';
@@ -23,6 +23,7 @@ import { Notifications } from '@/pages/Notifications';
 import { Account } from '@/pages/Account';
 import { PharmacyDashboard } from '@/pages/PharmacyDashboard';
 import { PharmacyRegister } from '@/pages/PharmacyRegister';
+import { VendorProfile } from '@/pages/VendorProfile';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -41,8 +42,8 @@ const AppRoutes = () => {
     );
   }
 
-  // بوابة الانضمام — الصيدلية المعتمَدة تنتظر التوقيع الرقمي قبل الوصول للوحة التحكم
-  if (user.role === 'pharmacy' && user.status === 'approved_pending_signature') {
+  // بوابة الانضمام — البائع المعتمَد (صيدلية/كوزماتك) ينتظر التوقيع الرقمي قبل الوصول للوحة التحكم
+  if (isVendor(user) && user.status === 'approved_pending_signature') {
     return <PartnershipAgreementModal />;
   }
 
@@ -54,15 +55,16 @@ const AppRoutes = () => {
       <Route path="/cart"          element={<Cart />} />
       <Route path="/notifications" element={<Notifications />} />
       <Route path="/account"       element={<Account />} />
+      <Route path="/vendor/:id"    element={<VendorProfile />} />
 
-      {user.role === 'pharmacy' && (
+      {isVendor(user) && (
         <Route path="/dashboard" element={<PharmacyDashboard />} />
       )}
       <Route path="/pharmacy-register" element={<PharmacyRegister />} />
 
       <Route
         path="*"
-        element={<Navigate to={user.role === 'pharmacy' ? '/dashboard' : '/home'} replace />}
+        element={<Navigate to={isVendor(user) ? '/dashboard' : '/home'} replace />}
       />
     </Routes>
   );

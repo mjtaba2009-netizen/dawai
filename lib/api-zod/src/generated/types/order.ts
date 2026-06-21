@@ -12,6 +12,11 @@ import type { Pharmacy } from './pharmacy';
 export interface Order {
   id: number;
   status: OrderStatus;
+  /**
+     * Per-order tracking code shown to patient and vendor (e.g.
+     * @nullable
+     */
+  trackingCode?: string | null;
   createdAt: string;
   medication: Medication;
   pharmacy: Pharmacy;

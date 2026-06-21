@@ -4,8 +4,9 @@ import { useNavigate } from 'react-router-dom';
 import { AuthContext, UserRole } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { User, Store } from 'lucide-react';
+import { User, Store, Sparkles } from 'lucide-react';
 import { PharmacyRegistrationForm } from '@/components/PharmacyRegistrationForm';
+import { CosmeticRegistrationForm, type CosmeticRegisterData } from '@/components/CosmeticRegistrationForm';
 
 // ── حدود المحافظات العراقية (Geolocation Bounding Boxes) ──────
 const IRAQ_GOV_BOUNDS = [
@@ -89,6 +90,8 @@ export function Login() {
   const [patientAddress, setPatientAddress] = useState('');
 
   const isPharmacyRegister = mode === 'register' && role === 'pharmacy';
+  const isCosmeticRegister = mode === 'register' && role === 'cosmetic';
+  const isVendorRegister = isPharmacyRegister || isCosmeticRegister;
 
   // ── Geolocation: يُفعَّل عند تسجيل مريض جديد فقط ──────────
   // (الصيدلية تكتشف موقعها داخل PharmacyRegistrationForm)
@@ -116,7 +119,7 @@ export function Login() {
           ? await apiLogin(phone, password)
           : await apiRegister(patientName, phone, password, 'patient');
 
-      navigate(authUser.role === 'pharmacy' ? '/dashboard' : '/home', { replace: true });
+      navigate('/home', { replace: true });
     } catch (err) {
       toast({
         title: mode === 'login' ? 'خطأ في تسجيل الدخول' : 'خطأ في التسجيل',
@@ -130,13 +133,43 @@ export function Login() {
 
   // ── Submit الصيدلية (من PharmacyRegistrationForm المضمّن) ──
   const handlePharmacyRegister = async ({
-    fullName, pharmacyName,
-  }: { fullName: string; pharmacyName: string }) => {
+    fullName, pharmacyName, governorate, address, workingHours,
+  }: { fullName: string; pharmacyName: string; governorate: string; address: string; workingHours: string }) => {
     setIsLoading(true);
     try {
-      const displayName = pharmacyName || fullName || 'صيدلية';
-      const authUser = await apiRegister(displayName, phone, password, 'pharmacy');
+      const displayName = fullName || pharmacyName || 'صيدلية';
+      const authUser = await apiRegister(displayName, phone, password, 'pharmacy', {
+        vendorName: pharmacyName,
+        governorate,
+        address,
+        workingHours,
+      });
       navigate(authUser.role === 'pharmacy' ? '/dashboard' : '/home', { replace: true });
+    } catch (err) {
+      toast({
+        title: 'خطأ في التسجيل',
+        description: String(err).replace('Error: ', ''),
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // ── Submit متجر الكوزماتك (من CosmeticRegistrationForm المضمّن) ──
+  const handleCosmeticRegister = async (data: CosmeticRegisterData) => {
+    setIsLoading(true);
+    try {
+      const displayName = data.fullName || data.vendorName || 'متجر';
+      const authUser = await apiRegister(displayName, phone, password, 'cosmetic', {
+        vendorName: data.vendorName,
+        governorate: data.governorate,
+        address: data.address,
+        workingHours: data.workingHours,
+        instagram: data.instagram,
+        tiktok: data.tiktok,
+      });
+      navigate(authUser.role === 'patient' ? '/home' : '/dashboard', { replace: true });
     } catch (err) {
       toast({
         title: 'خطأ في التسجيل',
@@ -151,7 +184,7 @@ export function Login() {
   return (
     <div
       className={`relative flex-1 flex flex-col px-5 bg-white transition-all
-        ${isPharmacyRegister ? 'overflow-y-auto justify-start pt-6 pb-8' : 'overflow-hidden justify-center'}`}
+        ${isVendorRegister ? 'overflow-y-auto justify-start pt-6 pb-8' : 'overflow-hidden justify-center'}`}
     >
       {/* خلفية متحركة */}
       <FloatingShape className="w-64 h-64 bg-emerald-400 -top-20 -right-20" delay={0}  duration={8}  />
@@ -162,21 +195,21 @@ export function Login() {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.6, ease: 'easeOut' }}
-        className={`relative z-10 w-full mx-auto ${isPharmacyRegister ? 'max-w-md' : 'max-w-sm'}`}
+        className={`relative z-10 w-full mx-auto ${isVendorRegister ? 'max-w-md' : 'max-w-sm'}`}
       >
         {/* ── الشعار ── */}
-        <div className={`text-center ${isPharmacyRegister ? 'mb-4' : 'mb-8'}`}>
+        <div className={`text-center ${isVendorRegister ? 'mb-4' : 'mb-8'}`}>
           <motion.div
             initial={{ scale: 0.8, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             transition={{ type: 'spring', damping: 18, stiffness: 260, delay: 0.1 }}
-            className={`mx-auto mb-2 ${isPharmacyRegister ? 'w-16 h-16' : 'w-28 h-28'}`}
+            className={`mx-auto mb-2 ${isVendorRegister ? 'w-16 h-16' : 'w-28 h-28'}`}
             style={{ transition: 'width 0.3s, height 0.3s' }}
           >
             <img src={`${import.meta.env.BASE_URL}logo.png`} alt="دوائي"
               className="w-full h-full object-contain drop-shadow-xl" />
           </motion.div>
-          {!isPharmacyRegister && (
+          {!isVendorRegister && (
             <p className="text-slate-500 font-medium text-sm">رفيقك الموثوق لإيجاد دوائك</p>
           )}
         </div>
@@ -206,13 +239,14 @@ export function Login() {
                 className="mb-4 overflow-hidden"
               >
                 <p className="text-slate-600 text-xs font-semibold mb-2 text-right">نوع الحساب</p>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-3 gap-2">
                   {([
-                    { value: 'patient',  label: 'مستخدم عادي', icon: User,  sub: 'أبحث عن دواء' },
-                    { value: 'pharmacy', label: 'صيدلية',       icon: Store, sub: 'أدير صيدلية'  },
+                    { value: 'patient',  label: 'مستخدم',  icon: User,     sub: 'أبحث عن دواء' },
+                    { value: 'pharmacy', label: 'صيدلية',  icon: Store,    sub: 'أدير صيدلية'  },
+                    { value: 'cosmetic', label: 'كوزماتك', icon: Sparkles, sub: 'متجر تجميل'   },
                   ] as const).map(({ value, label, icon: Icon, sub }) => (
                     <button key={value} type="button" onClick={() => setRole(value)}
-                      className={`p-3 rounded-2xl border-2 transition-all text-right ${
+                      className={`p-2.5 rounded-2xl border-2 transition-all text-right ${
                         role === value ? 'border-emerald-500 bg-emerald-50' : 'border-slate-200 bg-white'}`}
                       data-testid={`role-${value}`}>
                       <div className={`w-7 h-7 rounded-xl flex items-center justify-center mb-1.5 ${
@@ -220,7 +254,7 @@ export function Login() {
                         <Icon className={`w-3.5 h-3.5 ${role === value ? 'text-white' : 'text-slate-500'}`} />
                       </div>
                       <p className={`text-xs font-bold ${role === value ? 'text-emerald-700' : 'text-slate-700'}`}>{label}</p>
-                      <p className="text-[10px] text-slate-400 mt-0.5">{sub}</p>
+                      <p className="text-[9px] text-slate-400 mt-0.5 leading-tight">{sub}</p>
                     </button>
                   ))}
                 </div>
@@ -240,6 +274,15 @@ export function Login() {
               onPasswordChange={setPassword}
               isLoading={isLoading}
               onRegister={handlePharmacyRegister}
+            />
+          ) : isCosmeticRegister ? (
+            <CosmeticRegistrationForm
+              phone={phone}
+              password={password}
+              onPhoneChange={setPhone}
+              onPasswordChange={setPassword}
+              isLoading={isLoading}
+              onRegister={handleCosmeticRegister}
             />
           ) : (
             <form onSubmit={handleSubmit} className="space-y-3">

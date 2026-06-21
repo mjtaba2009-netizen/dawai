@@ -344,6 +344,25 @@ components:
           type: string
         password:
           type: string
+        role:
+          type: string
+          enum: [patient, pharmacy, cosmetic]
+          default: patient
+        vendorName:
+          type: string
+          description: Display name of the pharmacy/cosmetic store (vendor)
+        address:
+          type: string
+        governorate:
+          type: string
+        workingHours:
+          type: string
+        instagram:
+          type: string
+          description: Instagram profile URL (required for cosmetic vendors)
+        tiktok:
+          type: string
+          description: TikTok profile URL
 
     AuthResponse:
       type: object
@@ -366,6 +385,14 @@ components:
           type: string
         avatar:
           type: ["string", "null"]
+        role:
+          type: string
+          enum: [patient, pharmacy, cosmetic]
+        status:
+          type: string
+          enum: [active, approved_pending_signature]
+        pharmacyId:
+          type: ["integer", "null"]
 
     Medication:
       type: object
@@ -437,11 +464,17 @@ components:
 
     Pharmacy:
       type: object
-      required: [id, name, address, distance, isOpen, phone]
+      required: [id, name, address, distance, isOpen, phone, type, governorate]
       properties:
         id:
           type: integer
         name:
+          type: string
+        type:
+          type: string
+          enum: [pharmacy, cosmetic]
+          description: Vendor type
+        governorate:
           type: string
         address:
           type: string
@@ -453,6 +486,10 @@ components:
         phone:
           type: string
         whatsapp:
+          type: ["string", "null"]
+        instagram:
+          type: ["string", "null"]
+        tiktok:
           type: ["string", "null"]
         rating:
           type: ["number", "null"]
@@ -504,7 +541,10 @@ components:
           type: integer
         status:
           type: string
-          enum: [pending, confirmed, ready, completed, cancelled]
+          enum: [pending, confirmed, ready, completed, cancelled, delivered, rejected]
+        trackingCode:
+          type: ["string", "null"]
+          description: Per-order tracking code shown to patient and vendor (e.g. #DW-7F3A)
         createdAt:
           type: string
         medication:

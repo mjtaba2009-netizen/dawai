@@ -12,6 +12,7 @@ export const ordersTable = pgTable("orders", {
   medicationId: integer("medication_id").notNull().references(() => medicationsTable.id),
   quantity: integer("quantity").notNull().default(1),
   totalPrice: real("total_price").notNull(),
+  trackingCode: text("tracking_code"),
   status: text("status").notNull().default("pending"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),

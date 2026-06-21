@@ -15,4 +15,6 @@ export const OrderStatus = {
   ready: 'ready',
   completed: 'completed',
   cancelled: 'cancelled',
+  delivered: 'delivered',
+  rejected: 'rejected',
 } as const;

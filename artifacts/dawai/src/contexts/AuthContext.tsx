@@ -1,7 +1,17 @@
 import React, { createContext, useState, useEffect, useContext, ReactNode } from 'react';
 import { API_PREFIX } from '@/lib/api-base';
 
-export type UserRole = 'patient' | 'pharmacy';
+export type UserRole = 'patient' | 'pharmacy' | 'cosmetic';
+
+// بيانات إضافية تُرسل عند تسجيل البائعين (صيدلية / كوزماتك)
+export interface VendorRegistrationData {
+  vendorName?: string;
+  address?: string;
+  governorate?: string;
+  workingHours?: string;
+  instagram?: string;
+  tiktok?: string;
+}
 
 // حالة الحساب — 'approved_pending_signature' تعني أن مستندات الصيدلية اعتُمدت
 // من فريق الدعم وتنتظر التوقيع الرقمي على اتفاقية الانضمام لتفعيلها.
@@ -25,7 +35,13 @@ interface AuthContextType {
   login: (userData: AuthUser) => void;
   logout: () => void;
   apiLogin: (phone: string, password: string) => Promise<AuthUser>;
-  apiRegister: (name: string, phone: string, password: string, role: UserRole) => Promise<AuthUser>;
+  apiRegister: (
+    name: string,
+    phone: string,
+    password: string,
+    role: UserRole,
+    vendorData?: VendorRegistrationData
+  ) => Promise<AuthUser>;
   activateAccount: () => Promise<void>;
   clearJustActivated: () => void;
 }
@@ -127,9 +143,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     name: string,
     phone: string,
     password: string,
-    role: UserRole
+    role: UserRole,
+    vendorData?: VendorRegistrationData
   ): Promise<AuthUser> => {
-    const data = await apiPost<ApiAuthResponse>('/auth/register', { name, phone, password, role });
+    const data = await apiPost<ApiAuthResponse>('/auth/register', {
+      name,
+      phone,
+      password,
+      role,
+      ...(vendorData ?? {}),
+    });
     const authUser = toAuthUser(data, role);
     login(authUser);
     return authUser;
@@ -181,3 +204,8 @@ export function useAuth(): AuthContextType {
 // للتوافق مع الكود القديم
 export const isPharmacy = (user: AuthUser | null) => user?.role === 'pharmacy';
 export const isPatient = (user: AuthUser | null) => user?.role === 'patient';
+
+// البائعون = صيدلية أو كوزماتك (يشتركان في لوحة التحكم وبوابة التوقيع)
+export const isVendorRole = (role?: UserRole | null): boolean =>
+  role === 'pharmacy' || role === 'cosmetic';
+export const isVendor = (user: AuthUser | null): boolean => isVendorRole(user?.role);
